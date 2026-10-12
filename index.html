@@ -2481,6 +2481,12 @@ async function runOCR(imageData) {
   bar.style.width = '10%';
   status.textContent = 'Chargement du moteur OCR…';
 
+  if (typeof Tesseract === 'undefined') {
+    status.textContent = 'OCR indisponible — Tesseract.js non chargé';
+    bar.style.width = '100%'; bar.style.background = '#dc2626';
+    return;
+  }
+
   try {
     const worker = await Tesseract.createWorker('fra', 1, {
       logger: m => {
@@ -2505,7 +2511,7 @@ async function runOCR(imageData) {
 
     setTimeout(() => { progress.style.display = 'none'; }, 2000);
   } catch(err) {
-    status.textContent = 'Erreur OCR : ' + err.message;
+    status.textContent = 'Erreur OCR : ' + (err.message || err || 'erreur inconnue');
     bar.style.width = '100%';
     bar.style.background = '#dc2626';
     console.error('OCR error:', err);
@@ -4904,6 +4910,12 @@ async function runEcOCR(imageData) {
   bar.style.width = '10%';
   status.textContent = 'Chargement du moteur OCR…';
 
+  if (typeof Tesseract === 'undefined') {
+    status.textContent = 'OCR indisponible — Tesseract.js non chargé';
+    bar.style.width = '100%'; bar.style.background = '#dc2626';
+    return;
+  }
+
   try {
     const worker = await Tesseract.createWorker('fra', 1, {
       logger: m => {
@@ -4928,9 +4940,10 @@ async function runEcOCR(imageData) {
 
     setTimeout(() => { progress.style.display = 'none'; }, 2000);
   } catch(err) {
-    status.textContent = 'Erreur OCR : ' + err.message;
+    status.textContent = 'Erreur OCR : ' + (err.message || err || 'erreur inconnue');
     bar.style.width = '100%';
     bar.style.background = '#dc2626';
+    console.error('EC OCR error:', err);
   }
 }
 
