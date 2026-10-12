@@ -59,6 +59,73 @@
   .nav-btn.active { color: #1a56db; }
   .nav-btn svg { width: 22px; height: 22px; }
 
+  /* LOGIN SCREEN */
+  #login-screen {
+    position:fixed;inset:0;z-index:10000;
+    display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(145deg, #0f172a 0%, #1e3a5f 40%, #1a56db 100%);
+    flex-direction:column;
+  }
+  #login-screen.hidden { display:none; }
+  .login-box {
+    background:#fff;border-radius:16px;padding:32px 24px;width:90%;max-width:380px;
+    box-shadow:0 20px 60px rgba(0,0,0,.3);
+  }
+  .login-box h2 {
+    font-family:'Playfair Display',serif;font-size:22px;text-align:center;
+    color:#111827;margin-bottom:4px;
+  }
+  .login-box .login-sub {
+    text-align:center;font-size:12px;color:#9ca3af;margin-bottom:24px;
+  }
+  .login-box label {
+    display:block;font-size:13px;font-weight:500;color:#374151;margin-bottom:4px;margin-top:14px;
+  }
+  .login-box input[type=email],
+  .login-box input[type=password] {
+    width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;
+    font-size:14px;font-family:'DM Sans',sans-serif;outline:none;
+    transition:border .2s;
+  }
+  .login-box input:focus { border-color:#1a56db; }
+  .login-box .login-btn {
+    width:100%;margin-top:20px;padding:12px;border:none;border-radius:10px;
+    background:#1a56db;color:#fff;font-size:15px;font-weight:600;
+    font-family:'DM Sans',sans-serif;cursor:pointer;transition:background .2s;
+  }
+  .login-box .login-btn:hover { background:#1e429f; }
+  .login-box .login-btn:disabled { opacity:.6;cursor:not-allowed; }
+  .login-box .login-error {
+    color:#dc2626;font-size:12px;text-align:center;margin-top:10px;min-height:18px;
+  }
+  .login-box .login-toggle {
+    text-align:center;margin-top:16px;font-size:13px;color:#6b7280;
+  }
+  .login-box .login-toggle a {
+    color:#1a56db;cursor:pointer;font-weight:500;text-decoration:none;
+  }
+  .login-logo { text-align:center;margin-bottom:20px; }
+  .login-logo .logo-icon { font-size:36px; }
+  .login-logo .logo-text {
+    font-family:'Playfair Display',serif;font-size:24px;font-weight:700;color:#fff;
+    margin-top:8px;letter-spacing:1px;
+  }
+  .login-logo .logo-sub {
+    font-size:11px;color:rgba(255,255,255,.55);letter-spacing:2px;text-transform:uppercase;margin-top:4px;
+  }
+  .user-bar {
+    display:flex;align-items:center;gap:8px;margin-top:4px;
+  }
+  .user-bar .user-email {
+    font-size:11px;color:#6b7280;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .user-bar .logout-btn {
+    font-size:11px;color:#dc2626;background:none;border:1px solid #fecaca;
+    border-radius:6px;padding:2px 8px;cursor:pointer;font-family:'DM Sans',sans-serif;
+    white-space:nowrap;
+  }
+  .user-bar .logout-btn:hover { background:#fef2f2; }
+
   /* HEADER */
   .app-header {
     background: #ffffff;
@@ -666,16 +733,49 @@
     <div class="splash-dot"></div>
     <div class="splash-dot"></div>
   </div>
-  <div class="splash-version">v12 — Supabase Cloud</div>
+  <div class="splash-version">v13 — Multi-utilisateurs</div>
+</div>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-logo">
+    <div class="logo-icon">🏛️</div>
+    <div class="logo-text">SOFTABAK</div>
+    <div class="logo-sub">Compta & Gestion SCI</div>
+  </div>
+  <div class="login-box">
+    <h2 id="login-title">Connexion</h2>
+    <div class="login-sub" id="login-subtitle">Accédez à votre espace comptable</div>
+    <form id="login-form" onsubmit="handleAuth(event)">
+      <label for="login-email">Email</label>
+      <input type="email" id="login-email" required autocomplete="email" placeholder="votre@email.com">
+      <label for="login-password">Mot de passe</label>
+      <input type="password" id="login-password" required autocomplete="current-password" placeholder="••••••••">
+      <div id="signup-name-group" style="display:none">
+        <label for="login-name">Nom complet</label>
+        <input type="text" id="login-name" placeholder="Prénom Nom" autocomplete="name">
+      </div>
+      <button type="submit" class="login-btn" id="login-btn">Se connecter</button>
+      <div class="login-error" id="login-error"></div>
+    </form>
+    <div class="login-toggle">
+      <span id="login-toggle-text">Pas encore de compte ?</span>
+      <a onclick="toggleAuthMode()" id="login-toggle-link">Créer un compte</a>
+    </div>
+  </div>
 </div>
 
 <!-- NOTIFICATION -->
 <div class="notif" id="notif"></div>
 
 <!-- HEADER -->
-<div class="app-header">
+<div class="app-header" id="app-header">
   <h1>SOFTABAK Compta Gestion</h1>
   <p id="headerSubtitle">Gestion professionnelle de facturation</p>
+  <div class="user-bar" id="user-bar" style="display:none">
+    <span class="user-email" id="user-email"></span>
+    <button class="logout-btn" onclick="handleLogout()">Déconnexion</button>
+  </div>
 </div>
 
 <!-- PAGE: FACTURES (ACCUEIL + DASHBOARD) -->
@@ -1287,6 +1387,85 @@ const SUPABASE_URL = 'https://klbogpfkvgzkfzzmhktb.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsYm9ncGZrdmd6a2Z6em1oa3RiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3MzQzNjgsImV4cCI6MjEwNzMxMDM2OH0.mvUPWSyCrOKde37RbBD_K1p49UIrCqUzh7ek974xYCs';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ============ AUTH ============
+let currentUser = null;
+let authMode = 'login'; // 'login' or 'signup'
+
+function toggleAuthMode() {
+  authMode = authMode === 'login' ? 'signup' : 'login';
+  document.getElementById('login-title').textContent = authMode === 'login' ? 'Connexion' : 'Créer un compte';
+  document.getElementById('login-subtitle').textContent = authMode === 'login' ? 'Accédez à votre espace comptable' : 'Inscrivez-vous gratuitement';
+  document.getElementById('login-btn').textContent = authMode === 'login' ? 'Se connecter' : 'Créer mon compte';
+  document.getElementById('login-toggle-text').textContent = authMode === 'login' ? 'Pas encore de compte ?' : 'Déjà un compte ?';
+  document.getElementById('login-toggle-link').textContent = authMode === 'login' ? 'Créer un compte' : 'Se connecter';
+  document.getElementById('signup-name-group').style.display = authMode === 'signup' ? 'block' : 'none';
+  document.getElementById('login-error').textContent = '';
+}
+
+async function handleAuth(e) {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const btn = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Chargement…';
+
+  try {
+    let result;
+    if (authMode === 'signup') {
+      const name = document.getElementById('login-name').value.trim();
+      result = await sb.auth.signUp({
+        email, password,
+        options: { data: { name: name || email.split('@')[0] } }
+      });
+      if (result.error) throw result.error;
+      if (result.data?.user && !result.data.session) {
+        errEl.style.color = '#059669';
+        errEl.textContent = 'Compte créé ! Vérifiez votre email pour confirmer.';
+        btn.disabled = false;
+        btn.textContent = 'Créer mon compte';
+        return;
+      }
+    } else {
+      result = await sb.auth.signInWithPassword({ email, password });
+      if (result.error) throw result.error;
+    }
+    currentUser = result.data.user;
+    onLoginSuccess();
+  } catch(err) {
+    errEl.style.color = '#dc2626';
+    const msg = err.message || String(err);
+    if (msg.includes('Invalid login')) errEl.textContent = 'Email ou mot de passe incorrect';
+    else if (msg.includes('already registered')) errEl.textContent = 'Cet email est déjà utilisé';
+    else errEl.textContent = msg;
+    btn.disabled = false;
+    btn.textContent = authMode === 'login' ? 'Se connecter' : 'Créer mon compte';
+  }
+}
+
+async function onLoginSuccess() {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('user-bar').style.display = 'flex';
+  document.getElementById('user-email').textContent = currentUser.email;
+  await loadFromSupabase();
+  initPage();
+}
+
+async function handleLogout() {
+  await sb.auth.signOut();
+  currentUser = null;
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('user-bar').style.display = 'none';
+  // Reset state
+  state.headers = []; state.clients = []; state.fournisseurs = [];
+  state.banques = []; state.invoices = []; state.facturesFourn = [];
+  state.avoirs = []; state.ecritures = []; state.reglements = [];
+  state.exercices = [];
+  state.settings = { prefix:'FAC', startNum:1, paymentDays:30 };
+}
+
 // --- camelCase ↔ snake_case mapping per table ---
 const COL_MAP = {
   invoices: {
@@ -1361,6 +1540,7 @@ async function dbSelect(table) {
 
 async function dbUpsert(table, obj) {
   const row = toDb(table, obj);
+  if (currentUser) row.user_id = currentUser.id;
   const { error } = await sb.from(table).upsert(row, { onConflict: 'id' });
   if (error) console.error('dbUpsert '+table, error);
 }
@@ -1416,6 +1596,7 @@ function save() {
 
 async function saveSettingsToDb() {
   const row = toDb('settings', { id: 'default', ...state.settings });
+  if (currentUser) row.user_id = currentUser.id;
   const { error } = await sb.from('settings').upsert(row, { onConflict: 'id' });
   if (error) console.error('saveSettings', error);
 }
@@ -1450,15 +1631,20 @@ function showLoading(show) {
   // Timeout de sécurité : fermer le splash après 5s quoi qu'il arrive
   const splashTimeout = setTimeout(closeSplash, 5000);
 
+  // Check for existing session
   try {
-    await loadFromSupabase();
+    const { data: { session } } = await sb.auth.getSession();
+    if (session?.user) {
+      currentUser = session.user;
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('user-bar').style.display = 'flex';
+      document.getElementById('user-email').textContent = currentUser.email;
+      await loadFromSupabase();
+      initPage();
+    }
+    // If no session, login screen stays visible — user must log in
   } catch(e) {
-    console.warn('Supabase load error:', e);
-  }
-  try {
-    initPage();
-  } catch(e) {
-    console.warn('initPage error:', e);
+    console.warn('Auth check error:', e);
   }
 
   clearTimeout(splashTimeout);
