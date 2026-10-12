@@ -5522,65 +5522,75 @@ function renderGrandLivreSelect() {
   const bal = computeBalance();
   const codes = Object.keys(bal).sort();
   const sel = document.getElementById('gl-compte-select');
-  sel.innerHTML = '<option value="">— Choisir un compte —</option>' +
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— Tous les comptes —</option>' +
     codes.map(c=>`<option value="${c}">${c} — ${pcLib(c)}</option>`).join('');
+  if (prev && codes.includes(prev)) sel.value = prev;
+  renderGrandLivre();
 }
 
 function renderGrandLivre() {
   const code = document.getElementById('gl-compte-select').value;
   const el = document.getElementById('grandLivreContent');
-  if (!code) { el.innerHTML='<div style="padding:32px;text-align:center;color:#9ca3af;font-size:12px">Choisissez un compte pour voir ses mouvements.</div>'; return; }
+  const bal = computeBalance();
+  const codes = code ? [code] : Object.keys(bal).sort();
 
-  const lignes = (dossierEcritures()||[])
-    .filter(e => e.compteDebit===code || e.compteCredit===code)
-    .sort((a,b) => a.date.localeCompare(b.date));
-
-  if (!lignes.length) {
-    el.innerHTML = '<div style="padding:32px;text-align:center;color:#9ca3af;font-size:12px">Aucun mouvement sur ce compte.</div>';
+  if (!codes.length) {
+    el.innerHTML = '<div style="padding:32px;text-align:center;color:#9ca3af;font-size:12px">Aucune écriture comptable enregistrée.</div>';
     return;
   }
 
-  let cumul = 0;
-  el.innerHTML = `
-    <div style="background:#1e3a8a;color:#fff;padding:10px 14px;border-radius:8px 8px 0 0;font-size:13px;font-weight:700">
-      Compte ${code} — ${pcLib(code)}
-    </div>
-    <table class="gl-table" style="border-radius:0 0 8px 8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04)">
-      <thead>
-        <tr>
-          <th style="text-align:left">Date</th>
-          <th style="text-align:left">Libellé</th>
-          <th class="td-r">Débit</th>
-          <th class="td-r">Crédit</th>
-          <th class="td-r">Solde cumulé</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${lignes.map(e => {
-          const isD = e.compteDebit===code;
-          const d = isD ? e.montant : 0;
-          const c = isD ? 0 : e.montant;
-          cumul += isD ? e.montant : -e.montant;
-          return `<tr>
-            <td style="white-space:nowrap;color:#9ca3af;font-size:11px">${fmtDate(e.date)}</td>
-            <td>
-              <div style="font-size:12px;color:#374151">${e.libelle}</div>
-              ${e.ref?`<div style="font-size:10px;color:#9ca3af">${e.ref}</div>`:''}
-            </td>
-            <td class="td-r td-d">${d>0?fmt(d)+' €':'—'}</td>
-            <td class="td-r td-c">${c>0?fmt(c)+' €':'—'}</td>
-            <td class="td-r" style="font-weight:600;color:${cumul>=0?'#059669':'#dc2626'}">${fmt(Math.abs(cumul))} ${cumul>=0?'D':'C'}</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-      <tfoot>
-        <tr>
-          <td colspan="2" style="color:#374151">Solde final</td>
-          <td colspan="2"></td>
-          <td class="td-r" style="color:${cumul>=0?'#059669':'#dc2626'};font-size:14px">${fmt(Math.abs(cumul))} ${cumul>=0?'D':'C'}</td>
-        </tr>
-      </tfoot>
-    </table>`;
+  let html = '';
+  codes.forEach(c => {
+    const lignes = (dossierEcritures()||[])
+      .filter(e => e.compteDebit===c || e.compteCredit===c)
+      .sort((a,b) => a.date.localeCompare(b.date));
+    if (!lignes.length) return;
+
+    let cumul = 0;
+    html += `
+      <div style="background:#1e3a8a;color:#fff;padding:10px 14px;border-radius:8px 8px 0 0;font-size:13px;font-weight:700;margin-top:${html?'16px':'0'}">
+        Compte ${c} — ${pcLib(c)}
+      </div>
+      <table class="gl-table" style="border-radius:0 0 8px 8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-bottom:4px">
+        <thead>
+          <tr>
+            <th style="text-align:left">Date</th>
+            <th style="text-align:left">Libellé</th>
+            <th class="td-r">Débit</th>
+            <th class="td-r">Crédit</th>
+            <th class="td-r">Solde cumulé</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${lignes.map(e => {
+            const isD = e.compteDebit===c;
+            const d = isD ? e.montant : 0;
+            const cr = isD ? 0 : e.montant;
+            cumul += isD ? e.montant : -e.montant;
+            return `<tr>
+              <td style="white-space:nowrap;color:#9ca3af;font-size:11px">${fmtDate(e.date)}</td>
+              <td>
+                <div style="font-size:12px;color:#374151">${e.libelle}</div>
+                ${e.ref?`<div style="font-size:10px;color:#9ca3af">${e.ref}</div>`:''}
+              </td>
+              <td class="td-r td-d">${d>0?fmt(d)+' €':'—'}</td>
+              <td class="td-r td-c">${cr>0?fmt(cr)+' €':'—'}</td>
+              <td class="td-r" style="font-weight:600;color:${cumul>=0?'#059669':'#dc2626'}">${fmt(Math.abs(cumul))} ${cumul>=0?'D':'C'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="2" style="color:#374151">Solde final</td>
+            <td colspan="2"></td>
+            <td class="td-r" style="color:${cumul>=0?'#059669':'#dc2626'};font-size:14px">${fmt(Math.abs(cumul))} ${cumul>=0?'D':'C'}</td>
+          </tr>
+        </tfoot>
+      </table>`;
+  });
+
+  el.innerHTML = html || '<div style="padding:32px;text-align:center;color:#9ca3af;font-size:12px">Aucune écriture comptable enregistrée.</div>';
 }
 
 // ============ EXPORT JOURNAL PDF ============
