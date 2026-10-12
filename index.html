@@ -2473,17 +2473,16 @@ function removePieceFF() {
   document.getElementById('ff-piece-preview').style.display = 'none';
 }
 
-function fileToCanvas(file) {
+function fileToPNG(file) {
   return new Promise((resolve, reject) => {
     if (file.type === 'application/pdf') {
-      reject(new Error('PDF non supporté pour l\'OCR. Utilisez une photo ou un scan image (JPG/PNG).'));
+      reject(new Error('PDF non supporté pour l\'OCR. Prenez une photo de la facture (JPG/PNG).'));
       return;
     }
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      // Limiter la taille pour fiabilité OCR
       const maxDim = 2400;
       let w = img.naturalWidth, h = img.naturalHeight;
       if (w > maxDim || h > maxDim) {
@@ -2492,11 +2491,18 @@ function fileToCanvas(file) {
       }
       canvas.width = w; canvas.height = h;
       const ctx = canvas.getContext('2d');
+      // Fond blanc pour la transparence éventuelle
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
-      resolve(canvas);
+      // Convertir en Blob PNG pour Tesseract (compatible Web Worker)
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error('Impossible de convertir l\'image'));
+      }, 'image/png');
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Impossible de lire l\'image')); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Impossible de lire l\'image. Vérifiez le format (JPG/PNG).')); };
     img.src = url;
   });
 }
@@ -2517,7 +2523,7 @@ async function runOCR(file) {
 
   try {
     status.textContent = 'Préparation de l\'image…';
-    const canvas = await fileToCanvas(file);
+    const pngBlob = await fileToPNG(file);
 
     const worker = await Tesseract.createWorker('fra', 1, {
       logger: m => {
@@ -2531,7 +2537,7 @@ async function runOCR(file) {
     bar.style.width = '30%';
     status.textContent = 'Analyse du texte…';
 
-    const { data: { text } } = await worker.recognize(canvas);
+    const { data: { text } } = await worker.recognize(pngBlob);
     await worker.terminate();
 
     bar.style.width = '100%';
@@ -4949,7 +4955,7 @@ async function runEcOCR(file) {
 
   try {
     status.textContent = 'Préparation de l\'image…';
-    const canvas = await fileToCanvas(file);
+    const pngBlob = await fileToPNG(file);
 
     const worker = await Tesseract.createWorker('fra', 1, {
       logger: m => {
@@ -4962,7 +4968,7 @@ async function runEcOCR(file) {
 
     bar.style.width = '30%';
     status.textContent = 'Analyse du texte…';
-    const { data: { text } } = await worker.recognize(canvas);
+    const { data: { text } } = await worker.recognize(pngBlob);
     await worker.terminate();
 
     bar.style.width = '100%';
