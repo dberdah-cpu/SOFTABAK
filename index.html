@@ -6,6 +6,8 @@
 <title>SOFTABAK Compta Gestion</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
@@ -2473,12 +2475,35 @@ function removePieceFF() {
   document.getElementById('ff-piece-preview').style.display = 'none';
 }
 
-function fileToPNG(file) {
-  return new Promise((resolve, reject) => {
-    if (file.type === 'application/pdf') {
-      reject(new Error('PDF non supporté pour l\'OCR. Prenez une photo de la facture (JPG/PNG).'));
-      return;
+async function fileToPNG(file) {
+  // --- PDF : rendre la première page en image via pdf.js ---
+  if (file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf')) {
+    if (typeof pdfjsLib === 'undefined') {
+      throw new Error('Librairie PDF non chargée. Rechargez la page.');
     }
+    const arrayBuf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
+    const page = await pdf.getPage(1);
+    // Résolution 2x pour une bonne qualité OCR
+    const scale = 2.0;
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error('Impossible de convertir le PDF en image'));
+      }, 'image/png');
+    });
+  }
+
+  // --- Image classique (JPG, PNG, HEIC…) ---
+  return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
@@ -2491,18 +2516,16 @@ function fileToPNG(file) {
       }
       canvas.width = w; canvas.height = h;
       const ctx = canvas.getContext('2d');
-      // Fond blanc pour la transparence éventuelle
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
-      // Convertir en Blob PNG pour Tesseract (compatible Web Worker)
       canvas.toBlob(blob => {
         if (blob) resolve(blob);
         else reject(new Error('Impossible de convertir l\'image'));
       }, 'image/png');
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Impossible de lire l\'image. Vérifiez le format (JPG/PNG).')); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Impossible de lire l\'image. Vérifiez le format.')); };
     img.src = url;
   });
 }
