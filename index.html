@@ -147,6 +147,82 @@
     border-radius:10px;padding:1px 8px;margin-left:6px;
   }
 
+  /* DOSSIER SELECTION SCREEN */
+  #dossier-screen {
+    position:fixed;inset:0;z-index:9500;
+    background:linear-gradient(145deg, #0f172a 0%, #1e3a5f 40%, #1a56db 100%);
+    display:flex;flex-direction:column;align-items:center;
+    padding:40px 16px 40px;
+    overflow-y:auto;
+  }
+  #dossier-screen.hidden { display:none; }
+  .dossier-title {
+    font-family:'Playfair Display',serif;font-size:22px;color:#fff;
+    text-align:center;margin-bottom:4px;
+  }
+  .dossier-sub {
+    font-size:13px;color:rgba(255,255,255,.6);text-align:center;margin-bottom:24px;
+  }
+  .dossier-grid {
+    display:grid;grid-template-columns:1fr;gap:14px;
+    width:100%;max-width:460px;
+  }
+  @media(min-width:480px) { .dossier-grid { grid-template-columns:1fr 1fr; } }
+  .dossier-card {
+    background:#fff;border-radius:14px;padding:20px 18px;
+    cursor:pointer;transition:transform .15s,box-shadow .15s;
+    box-shadow:0 4px 16px rgba(0,0,0,.12);
+    border:2px solid transparent;
+  }
+  .dossier-card:hover { transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.18); }
+  .dossier-card:active { transform:scale(.97); }
+  .dossier-card .dc-icon { font-size:28px;margin-bottom:8px; }
+  .dossier-card .dc-name {
+    font-family:'Playfair Display',serif;font-size:16px;color:#1e429f;
+    margin-bottom:4px;line-height:1.3;
+  }
+  .dossier-card .dc-legal { font-size:11px;color:#6b7280;margin-bottom:6px; }
+  .dossier-card .dc-info { font-size:11px;color:#9ca3af;line-height:1.5; }
+  .dossier-card.shared { border-color:#dbeafe; }
+  .dossier-card.shared .dc-name::after {
+    content:'Partagée';font-size:9px;color:#1a56db;background:#eff6ff;
+    border-radius:8px;padding:1px 7px;margin-left:6px;
+    font-family:'DM Sans',sans-serif;vertical-align:middle;
+  }
+  .dossier-card.dc-new {
+    background:rgba(255,255,255,.1);border:2px dashed rgba(255,255,255,.3);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:120px;
+  }
+  .dossier-card.dc-new .dc-icon { color:rgba(255,255,255,.7); }
+  .dossier-card.dc-new .dc-name { color:rgba(255,255,255,.8);font-family:'DM Sans',sans-serif;font-size:14px; }
+  .dossier-card.dc-new:hover { background:rgba(255,255,255,.18); }
+  .dossier-user-bar {
+    display:flex;align-items:center;gap:8px;width:100%;max-width:460px;
+    margin-bottom:20px;justify-content:flex-end;
+  }
+  .dossier-user-bar .user-email { font-size:12px;color:rgba(255,255,255,.6); }
+  .dossier-user-bar .logout-btn {
+    font-size:11px;color:#fca5a5;background:none;border:1px solid rgba(252,165,165,.3);
+    border-radius:6px;padding:3px 10px;cursor:pointer;font-family:'DM Sans',sans-serif;
+  }
+  .dossier-user-bar .logout-btn:hover { background:rgba(252,165,165,.1); }
+
+  /* Current dossier indicator in app header */
+  .current-dossier-bar {
+    display:flex;align-items:center;gap:8px;margin-top:6px;
+  }
+  .current-dossier-bar .cd-name {
+    font-size:13px;color:#1a56db;font-weight:600;flex:1;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .current-dossier-bar .cd-switch {
+    font-size:11px;color:#6b7280;background:none;border:1px solid #d1d5db;
+    border-radius:6px;padding:3px 10px;cursor:pointer;font-family:'DM Sans',sans-serif;
+    white-space:nowrap;
+  }
+  .current-dossier-bar .cd-switch:hover { background:#f3f4f6; }
+
   /* HEADER */
   .app-header {
     background: #ffffff;
@@ -793,6 +869,17 @@
   </div>
 </div>
 
+<!-- DOSSIER SELECTION SCREEN -->
+<div id="dossier-screen" class="hidden">
+  <div class="dossier-user-bar">
+    <span class="user-email" id="dossier-user-email"></span>
+    <button class="logout-btn" onclick="handleLogout()">Déconnexion</button>
+  </div>
+  <div class="dossier-title">📂 Sélectionnez un dossier</div>
+  <div class="dossier-sub" id="dossier-sub">Sur quelle société voulez-vous travailler ?</div>
+  <div class="dossier-grid" id="dossier-grid"></div>
+</div>
+
 <!-- NOTIFICATION -->
 <div class="notif" id="notif"></div>
 
@@ -803,6 +890,10 @@
   <div class="user-bar" id="user-bar" style="display:none">
     <span class="user-email" id="user-email"></span>
     <button class="logout-btn" onclick="handleLogout()">Déconnexion</button>
+  </div>
+  <div class="current-dossier-bar" id="current-dossier-bar" style="display:none">
+    <span class="cd-name" id="cd-name"></span>
+    <button class="cd-switch" onclick="showDossierScreen()">📂 Changer</button>
   </div>
 </div>
 
@@ -1441,6 +1532,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ============ AUTH ============
 let currentUser = null;
+let currentDossier = null; // { id, name, isOwner }
 let authMode = 'login'; // 'login' or 'signup'
 
 function togglePasswordVisibility() {
@@ -1517,23 +1609,120 @@ async function handleAuth(e) {
 
 async function onLoginSuccess() {
   document.getElementById('login-screen').classList.add('hidden');
+  await loadFromSupabase();
+  showDossierScreen();
+}
+
+function showDossierScreen() {
+  // Hide the main app
+  document.getElementById('app-header').style.display = 'none';
+  document.querySelector('.nav').style.display = 'none';
+  document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+  document.getElementById('mainFab').style.display = 'none';
+  document.getElementById('current-dossier-bar').style.display = 'none';
+  currentDossier = null;
+
+  // Show dossier screen
+  const ds = document.getElementById('dossier-screen');
+  ds.classList.remove('hidden');
+  document.getElementById('dossier-user-email').textContent = currentUser?.email || '';
+
+  // Build cards
+  const grid = document.getElementById('dossier-grid');
+  const headers = state.headers || [];
+
+  if (!headers.length) {
+    document.getElementById('dossier-sub').textContent = 'Vous n\'avez aucune société. Créez votre première société pour commencer.';
+  } else {
+    document.getElementById('dossier-sub').textContent = 'Sur quelle société voulez-vous travailler ?';
+  }
+
+  const isOwner = h => !currentUser || h.userId === currentUser.id;
+
+  let html = headers.map(h => {
+    const owner = isOwner(h);
+    const invCount = (state.invoices || []).filter(i => i.headerId === h.id).length;
+    return `
+      <div class="dossier-card${owner ? '' : ' shared'}" onclick="selectDossier('${h.id}')">
+        <div class="dc-icon">${owner ? '🏢' : '🤝'}</div>
+        <div class="dc-name">${h.name}</div>
+        <div class="dc-legal">${h.legal || ''}</div>
+        <div class="dc-info">
+          ${h.city ? '📍 ' + (h.zip || '') + ' ' + h.city : ''}
+          ${h.siret ? '<br>🏛️ ' + h.siret : ''}
+          <br>📄 ${invCount} facture${invCount > 1 ? 's' : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // "Créer une nouvelle société" card
+  html += `
+    <div class="dossier-card dc-new" onclick="createDossierFromScreen()">
+      <div class="dc-icon">➕</div>
+      <div class="dc-name">Nouvelle société</div>
+    </div>
+  `;
+
+  grid.innerHTML = html;
+}
+
+function selectDossier(headerId) {
+  const h = state.headers.find(x => x.id === headerId);
+  if (!h) return;
+
+  const isOwner = !currentUser || h.userId === currentUser.id;
+  currentDossier = { id: headerId, name: h.name, isOwner };
+
+  // Hide dossier screen
+  document.getElementById('dossier-screen').classList.add('hidden');
+
+  // Show main app
+  document.getElementById('app-header').style.display = '';
+  document.querySelector('.nav').style.display = '';
+  document.getElementById('mainFab').style.display = '';
+
+  // Show current dossier indicator
   document.getElementById('user-bar').style.display = 'flex';
   document.getElementById('user-email').textContent = currentUser.email;
-  await loadFromSupabase();
+  document.getElementById('current-dossier-bar').style.display = 'flex';
+  document.getElementById('cd-name').textContent = '📂 ' + h.name;
+
+  // Show pages again
+  document.querySelectorAll('.page').forEach(p => p.style.display = '');
+
   initPage();
+  showPage('invoices');
+}
+
+function createDossierFromScreen() {
+  // Hide dossier screen temporarily, show app to access the modal
+  document.getElementById('dossier-screen').classList.add('hidden');
+  document.getElementById('app-header').style.display = '';
+
+  // Open header modal
+  resetHeaderModal();
+  openModal('headerModal');
+
+  // After saving, the modal closes and we need to show dossier screen again
+  // We set a flag so saveHeader knows to return to dossier selection
+  window._returnToDossierScreen = true;
 }
 
 async function handleLogout() {
   await sb.auth.signOut();
   currentUser = null;
+  currentDossier = null;
   localStorage.removeItem('softabak_remember');
   document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('dossier-screen').classList.add('hidden');
   document.getElementById('user-bar').style.display = 'none';
+  document.getElementById('current-dossier-bar').style.display = 'none';
   // Reset state
   state.headers = []; state.clients = []; state.fournisseurs = [];
   state.banques = []; state.invoices = []; state.facturesFourn = [];
   state.avoirs = []; state.ecritures = []; state.reglements = [];
-  state.exercices = [];
+  state.exercices = []; state.partages = [];
   state.settings = { prefix:'FAC', startNum:1, paymentDays:30 };
 }
 
@@ -1736,10 +1925,8 @@ function showLoading(show) {
     if (session?.user) {
       currentUser = session.user;
       document.getElementById('login-screen').classList.add('hidden');
-      document.getElementById('user-bar').style.display = 'flex';
-      document.getElementById('user-email').textContent = currentUser.email;
       await loadFromSupabase();
-      initPage();
+      showDossierScreen();
     }
     // If no session, login screen stays visible — user must log in
   } catch(e) {
@@ -1774,13 +1961,54 @@ function renderAll() {
   initContrepartieSelects();
 }
 
+// ============ FILTERED DATA HELPERS ============
+// Returns invoices for the current dossier only
+function dossierInvoices() {
+  if (!currentDossier) return state.invoices;
+  return state.invoices.filter(i => i.headerId === currentDossier.id);
+}
+// Returns ecritures linked to invoices of the current dossier
+function dossierEcritures() {
+  if (!currentDossier) return state.ecritures;
+  const invIds = new Set(dossierInvoices().map(i => i.id));
+  return state.ecritures.filter(e => {
+    if (e.invoiceId && invIds.has(e.invoiceId)) return true;
+    // Ecritures not linked to any invoice (manual or fourn) — keep for now
+    if (!e.invoiceId && !e.factFournId) return true;
+    // Ecritures linked to factures fourn — keep all (shared across dossiers for now)
+    if (e.factFournId) return true;
+    return false;
+  });
+}
+function dossierAvoirs() {
+  if (!currentDossier) return state.avoirs;
+  // Avoirs linked to invoices of this dossier
+  const invIds = new Set(dossierInvoices().map(i => i.id));
+  return state.avoirs.filter(a => {
+    if (a.factureRef && invIds.has(a.factureRef)) return true;
+    // Avoirs without factureRef — keep all
+    if (!a.factureRef) return true;
+    return false;
+  });
+}
+function dossierReglements() {
+  if (!currentDossier) return state.reglements;
+  const invIds = new Set(dossierInvoices().map(i => i.id));
+  return state.reglements.filter(r => {
+    if (r.invoiceId && invIds.has(r.invoiceId)) return true;
+    if (!r.invoiceId) return true;
+    return false;
+  });
+}
+
 // ============ DASHBOARD ACCUEIL ============
 function renderDashboard() {
   const year = new Date().getFullYear();
-  document.getElementById('dash-year-title').textContent = 'Exercice ' + year;
+  const dossierName = currentDossier ? currentDossier.name : '';
+  document.getElementById('dash-year-title').textContent = 'Exercice ' + year + (dossierName ? ' — ' + dossierName : '');
 
-  // KPIs depuis les écritures comptables
-  const ecritures = (state.ecritures || []).filter(e => e.date && e.date.startsWith(String(year)));
+  // KPIs depuis les écritures comptables (filtrées par dossier)
+  const ecritures = (dossierEcritures() || []).filter(e => e.date && e.date.startsWith(String(year)));
 
   // CA = total crédit des comptes 7xx (produits)
   let ca = 0;
@@ -1810,8 +2038,8 @@ function renderDashboard() {
   });
   const tvaAPayer = tvaCollectee - tvaDeductible;
 
-  // KPIs depuis les factures
-  const yearInvoices = (state.invoices || []).filter(i => i.date && i.date.startsWith(String(year)));
+  // KPIs depuis les factures (filtrées par dossier)
+  const yearInvoices = (dossierInvoices() || []).filter(i => i.date && i.date.startsWith(String(year)));
   const nbFactures = yearInvoices.length;
   const facturesPaid = yearInvoices.filter(i => i.status === 'paid');
   const facturesPending = yearInvoices.filter(i => i.status === 'pending');
@@ -1928,7 +2156,14 @@ function openModal(id) {
   }
   document.getElementById(id).classList.add('open');
 }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  // If closing headerModal from dossier screen without saving → return to dossier screen
+  if (id === 'headerModal' && window._returnToDossierScreen) {
+    window._returnToDossierScreen = false;
+    showDossierScreen();
+  }
+}
 
 document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
@@ -1973,6 +2208,17 @@ async function saveHeader() {
   await dbUpsert('headers', obj);
   renderHeaders(); closeModal('headerModal');
   notify('Société enregistrée ✓');
+
+  // If created from dossier screen, go back to select it
+  if (window._returnToDossierScreen) {
+    window._returnToDossierScreen = false;
+    if (!id) {
+      // New company — auto-select it
+      selectDossier(obj.id);
+    } else {
+      showDossierScreen();
+    }
+  }
 }
 
 function editHeader(id) {
@@ -2424,6 +2670,10 @@ function openNewInvoice() {
 function populateSelects() {
   const hs = document.getElementById('inv-header');
   hs.innerHTML = state.headers.map(h => `<option value="${h.id}">${h.name}</option>`).join('');
+  // Auto-select current dossier
+  if (currentDossier) {
+    hs.value = currentDossier.id;
+  }
   const cs = document.getElementById('inv-client');
   cs.innerHTML = state.clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
 }
@@ -2678,16 +2928,17 @@ function openInvoiceDetail(id) {
 function renderInvoices() {
   const el = document.getElementById('invoiceList');
   const count = document.getElementById('invoiceCount');
-  count.textContent = state.invoices.length;
+  const invoices = dossierInvoices();
+  count.textContent = invoices.length;
 
-  if (!state.invoices.length) {
+  if (!invoices.length) {
     el.innerHTML = '<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg><p>Aucune facture.<br>Appuyez sur + pour créer.</p></div>';
     return;
   }
 
   const statusMap = { draft: ['Brouillon','badge-gray'], pending: ['En attente','badge-gold'], paid: ['Payée','badge-green'] };
 
-  el.innerHTML = state.invoices.map(inv => {
+  el.innerHTML = invoices.map(inv => {
     const c = state.clients.find(x => x.id === inv.clientId);
     const [sl, sc] = statusMap[inv.status] || ['—','badge-gray'];
     const isPaid = inv.status === 'paid';
@@ -3492,7 +3743,7 @@ function renderAvoirs() {
   const el = document.getElementById('avoirList');
   const countEl = document.getElementById('avoirCount');
   if (!el) return;
-  const avoirs = state.avoirs || [];
+  const avoirs = dossierAvoirs() || [];
   if (countEl) countEl.textContent = avoirs.length;
   if (!avoirs.length) {
     el.innerHTML = '<p style="font-size:12px;color:#9ca3af;padding:12px 0">Aucun avoir émis.</p>';
@@ -3917,9 +4168,10 @@ async function saveSettings() {
 }
 
 function updateStats() {
-  const total = state.invoices.reduce((s, i) => s + i.ttc, 0);
-  const paid = state.invoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.ttc, 0);
-  const pending = state.invoices.filter(i => i.status === 'pending').reduce((s, i) => s + i.ttc, 0);
+  const inv = dossierInvoices();
+  const total = inv.reduce((s, i) => s + i.ttc, 0);
+  const paid = inv.filter(i => i.status === 'paid').reduce((s, i) => s + i.ttc, 0);
+  const pending = inv.filter(i => i.status === 'pending').reduce((s, i) => s + i.ttc, 0);
   document.getElementById('statsBox').innerHTML = `
     <div style="display:grid;gap:8px">
       <div style="display:flex;justify-content:space-between"><span>Total factures</span><span style="font-weight:700;color:#111827">${fmt(total)} €</span></div>
@@ -3995,8 +4247,8 @@ function renderFournisseurs() {
     return;
   }
   el.innerHTML = state.fournisseurs.map(f => {
-    // Solde : total des écritures sur le compte de ce fournisseur
-    const mvts = (state.ecritures||[]).filter(e => e.tiersId===f.id || e.compteCredit===f.compte || e.compteDebit===f.compte);
+    // Solde : total des écritures sur le compte de ce fournisseur (filtré par dossier)
+    const mvts = (dossierEcritures()||[]).filter(e => e.tiersId===f.id || e.compteCredit===f.compte || e.compteDebit===f.compte);
     let solde = 0;
     mvts.forEach(e => {
       if (e.compteCredit===f.compte) solde += e.montant;
@@ -4049,17 +4301,19 @@ function renderTiers() {
   const kpiEl = document.getElementById('clients-kpi');
   if (!el) return;
 
-  // Regrouper les écritures par client (via factures)
+  // Regrouper les écritures par client (via factures du dossier)
   const clientMap = {};
-  (state.invoices||[]).forEach(inv => {
+  const _dinv = dossierInvoices();
+  (_dinv||[]).forEach(inv => {
     const c = state.clients.find(x=>x.id===inv.clientId);
     if (!c) return;
     if (!clientMap[c.id]) clientMap[c.id] = { client:c, invoices:[], reglements:[] };
     clientMap[c.id].invoices.push(inv);
   });
-  (state.reglements||[]).forEach(r => {
+  const _dregl = dossierReglements();
+  (_dregl||[]).forEach(r => {
     if (!r.invoiceId) return;
-    const inv = state.invoices.find(i=>i.id===r.invoiceId);
+    const inv = _dinv.find(i=>i.id===r.invoiceId);
     if (!inv) return;
     const cid = inv.clientId;
     if (clientMap[cid]) clientMap[cid].reglements.push(r);
@@ -4192,7 +4446,7 @@ const JOURNAL_COLOR = { vente:'#1d4ed8', achat:'#b45309', charge:'#b45309', banq
 
 function renderEcritures() {
   const el = document.getElementById('ecritureList');
-  let list = [...state.ecritures].sort((a,b) => b.date.localeCompare(a.date));
+  let list = [...dossierEcritures()].sort((a,b) => b.date.localeCompare(a.date));
   if (currentEcritureFilter !== 'all') list = list.filter(e => e.journal === currentEcritureFilter);
   if (!list.length) {
     el.innerHTML = '<div style="padding:32px;text-align:center;color:#9ca3af;font-size:12px">Aucune écriture. Validez une facture ou saisissez manuellement.</div>';
@@ -5080,7 +5334,7 @@ function renderReglements() {
     el.innerHTML = '<p style="font-size:12px;color:#9ca3af;padding:12px 0">Créez d\'abord un compte bancaire.</p>';
     return;
   }
-  const list = [...(state.reglements||[])].sort((a,b) => b.date.localeCompare(a.date));
+  const list = [...(dossierReglements()||[])].sort((a,b) => b.date.localeCompare(a.date));
   if (!list.length) {
     el.innerHTML = '<p style="font-size:12px;color:#9ca3af;padding:12px 0">Aucun règlement enregistré.</p>';
     return;
@@ -5110,13 +5364,13 @@ function populateBanqueSelect() {
     state.banques.map(b => `<option value="${b.id}">${b.nom}</option>`).join('');
   const inv = document.getElementById('rg-invoice');
   inv.innerHTML = '<option value="">— Facture (optionnel) —</option>' +
-    state.invoices.filter(i=>i.status!=='paid').map(i=>`<option value="${i.id}">${i.number} — ${fmt(i.ttc)} €</option>`).join('');
+    dossierInvoices().filter(i=>i.status!=='paid').map(i=>`<option value="${i.id}">${i.number} — ${fmt(i.ttc)} €</option>`).join('');
 }
 
 // ============ BALANCE ============
 function computeBalance() {
   const comptes = {};
-  (state.ecritures||[]).forEach(e => {
+  (dossierEcritures()||[]).forEach(e => {
     if (!comptes[e.compteDebit])  comptes[e.compteDebit]  = { debit:0, credit:0 };
     if (!comptes[e.compteCredit]) comptes[e.compteCredit] = { debit:0, credit:0 };
     comptes[e.compteDebit].debit   += e.montant;
@@ -5204,7 +5458,7 @@ function renderGrandLivre() {
   const el = document.getElementById('grandLivreContent');
   if (!code) { el.innerHTML='<div style="padding:32px;text-align:center;color:#9ca3af;font-size:12px">Choisissez un compte pour voir ses mouvements.</div>'; return; }
 
-  const lignes = (state.ecritures||[])
+  const lignes = (dossierEcritures()||[])
     .filter(e => e.compteDebit===code || e.compteCredit===code)
     .sort((a,b) => a.date.localeCompare(b.date));
 
@@ -5559,7 +5813,7 @@ function generateFEC() {
   if (!d1 || !d2) { notify('Sélectionnez les dates de l\'exercice', true); return; }
   if (!siren || siren.length < 9) { notify('Le SIREN (9 chiffres) est obligatoire pour le FEC', true); return; }
 
-  const ecritures = (state.ecritures || [])
+  const ecritures = (dossierEcritures() || [])
     .filter(e => e.date >= d1 && e.date <= d2)
     .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 
