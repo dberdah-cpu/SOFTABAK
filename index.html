@@ -2462,8 +2462,8 @@ function ocrScanFile(input) {
     document.getElementById('ff-piece-name').textContent = file.name;
     document.getElementById('ff-piece-preview').style.display = 'block';
 
-    // Lancer l'OCR
-    runOCR(base64);
+    // Lancer l'OCR avec le File original (plus fiable que le base64)
+    runOCR(file);
   };
   reader.readAsDataURL(file);
 }
@@ -2473,7 +2473,7 @@ function removePieceFF() {
   document.getElementById('ff-piece-preview').style.display = 'none';
 }
 
-async function runOCR(imageData) {
+async function runOCR(fileOrBlob) {
   const progress = document.getElementById('ocr-progress');
   const bar = document.getElementById('ocr-bar');
   const status = document.getElementById('ocr-status');
@@ -2485,6 +2485,14 @@ async function runOCR(imageData) {
     status.textContent = 'OCR indisponible — Tesseract.js non chargé';
     bar.style.width = '100%'; bar.style.background = '#dc2626';
     return;
+  }
+
+  // Convertir en Object URL si c'est un File/Blob (plus fiable que base64)
+  let imageSource = fileOrBlob;
+  let objectUrl = null;
+  if (fileOrBlob instanceof Blob) {
+    objectUrl = URL.createObjectURL(fileOrBlob);
+    imageSource = objectUrl;
   }
 
   try {
@@ -2500,7 +2508,7 @@ async function runOCR(imageData) {
     bar.style.width = '30%';
     status.textContent = 'Analyse du texte…';
 
-    const { data: { text } } = await worker.recognize(imageData);
+    const { data: { text } } = await worker.recognize(imageSource);
     await worker.terminate();
 
     bar.style.width = '100%';
@@ -2515,6 +2523,8 @@ async function runOCR(imageData) {
     bar.style.width = '100%';
     bar.style.background = '#dc2626';
     console.error('OCR error:', err);
+  } finally {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
 }
 
@@ -4895,13 +4905,13 @@ function onEcPieceWithOCR(input) {
   reader.onload = () => {
     ecPieceData = reader.result;
     updateEcPieceUI();
-    // Lancer l'OCR sur cette pièce
-    runEcOCR(ecPieceData);
+    // Lancer l'OCR avec le File original
+    runEcOCR(file);
   };
   reader.readAsDataURL(file);
 }
 
-async function runEcOCR(imageData) {
+async function runEcOCR(fileOrBlob) {
   const progress = document.getElementById('ec-ocr-progress');
   const bar = document.getElementById('ec-ocr-bar');
   const status = document.getElementById('ec-ocr-status');
@@ -4916,6 +4926,13 @@ async function runEcOCR(imageData) {
     return;
   }
 
+  let imageSource = fileOrBlob;
+  let objectUrl = null;
+  if (fileOrBlob instanceof Blob) {
+    objectUrl = URL.createObjectURL(fileOrBlob);
+    imageSource = objectUrl;
+  }
+
   try {
     const worker = await Tesseract.createWorker('fra', 1, {
       logger: m => {
@@ -4928,7 +4945,7 @@ async function runEcOCR(imageData) {
 
     bar.style.width = '30%';
     status.textContent = 'Analyse du texte…';
-    const { data: { text } } = await worker.recognize(imageData);
+    const { data: { text } } = await worker.recognize(imageSource);
     await worker.terminate();
 
     bar.style.width = '100%';
@@ -4944,6 +4961,8 @@ async function runEcOCR(imageData) {
     bar.style.width = '100%';
     bar.style.background = '#dc2626';
     console.error('EC OCR error:', err);
+  } finally {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
 }
 
