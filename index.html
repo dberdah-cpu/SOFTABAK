@@ -110,6 +110,10 @@
     font-family:'Playfair Display',serif;font-size:24px;font-weight:700;color:#fff;
     margin-top:8px;letter-spacing:1px;
   }
+  .login-logo .logo-text .t-highlight {
+    color:#60a5fa;font-size:28px;
+    text-shadow:0 0 12px rgba(96,165,250,.5), 0 0 25px rgba(96,165,250,.3);
+  }
   .login-logo .logo-sub {
     font-size:11px;color:rgba(255,255,255,.55);letter-spacing:2px;text-transform:uppercase;margin-top:4px;
   }
@@ -145,6 +149,24 @@
     display:inline-flex;align-items:center;gap:3px;
     font-size:10px;color:#1a56db;background:#eff6ff;
     border-radius:10px;padding:1px 8px;margin-left:6px;
+  }
+
+  /* LOGO UPLOAD */
+  .logo-upload-area {
+    border:2px dashed #d1d5db;border-radius:12px;padding:16px;text-align:center;
+    cursor:pointer;transition:border-color .2s, background .2s;position:relative;
+    min-height:80px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;
+  }
+  .logo-upload-area:hover { border-color:#1a56db;background:#f8faff; }
+  .logo-upload-area img {
+    max-width:180px;max-height:80px;object-fit:contain;border-radius:6px;
+  }
+  .logo-upload-hint { font-size:11px;color:#9ca3af; }
+  .logo-upload-icon { font-size:28px;color:#d1d5db; }
+  .logo-remove-btn {
+    position:absolute;top:4px;right:4px;background:#ef4444;color:#fff;border:none;
+    border-radius:50%;width:22px;height:22px;font-size:13px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;line-height:1;
   }
 
   /* DOSSIER SELECTION SCREEN */
@@ -790,6 +812,22 @@
       color:#ffffff;letter-spacing:1px;
       opacity:0;animation:splash-fadein 0.8s ease 0.3s forwards;
     }
+    .splash-title .t-highlight {
+      display:inline-block;
+      color:#60a5fa;
+      text-shadow:0 0 12px rgba(96,165,250,.7), 0 0 30px rgba(96,165,250,.4), 0 0 50px rgba(59,130,246,.2);
+      animation:t-glow 2.2s ease-in-out infinite, t-float 2.2s ease-in-out infinite;
+      font-size:32px;
+      position:relative;top:-1px;
+    }
+    @keyframes t-glow {
+      0%,100% { text-shadow:0 0 12px rgba(96,165,250,.7), 0 0 30px rgba(96,165,250,.4); color:#60a5fa; }
+      50% { text-shadow:0 0 20px rgba(96,165,250,1), 0 0 50px rgba(96,165,250,.6), 0 0 80px rgba(59,130,246,.3); color:#93c5fd; }
+    }
+    @keyframes t-float {
+      0%,100% { transform:translateY(0) scale(1); }
+      50% { transform:translateY(-2px) scale(1.08); }
+    }
     .splash-subtitle {
       margin-top:8px;
       font-family:'DM Sans',sans-serif;font-size:12px;font-weight:400;
@@ -823,7 +861,7 @@
       <div class="splash-logo-letter">S</div>
     </div>
   </div>
-  <div class="splash-title">SOFTABAK</div>
+  <div class="splash-title">SOF<span class="t-highlight">T</span>ABAK</div>
   <div class="splash-subtitle">Compta & Gestion SCI</div>
   <div class="splash-dots">
     <div class="splash-dot"></div>
@@ -837,7 +875,7 @@
 <div id="login-screen">
   <div class="login-logo">
     <div class="logo-icon">🏛️</div>
-    <div class="logo-text">SOFTABAK</div>
+    <div class="logo-text">SOF<span class="t-highlight">T</span>ABAK</div>
     <div class="logo-sub">Compta & Gestion SCI</div>
   </div>
   <div class="login-box">
@@ -1183,6 +1221,16 @@
     <div class="form-group"><label class="form-label">IBAN</label><input class="form-input" id="h-iban" placeholder="FR76 1234 5678 9012 3456 7890 123"></div>
     <div class="form-group"><label class="form-label">BIC / SWIFT</label><input class="form-input" id="h-bic" placeholder="BNPAFRPP"></div>
     <div class="form-group"><label class="form-label">RCS / Greffe</label><input class="form-input" id="h-rcs" placeholder="RCS Paris 123 456 789"></div>
+    <div class="form-group">
+      <label class="form-label">Logo de la société</label>
+      <div class="logo-upload-area" id="logo-upload-area" onclick="document.getElementById('h-logo-input').click()">
+        <div class="logo-upload-icon" id="logo-upload-icon">📷</div>
+        <div class="logo-upload-hint" id="logo-upload-hint">Cliquez pour ajouter un logo (JPG, PNG)</div>
+        <img id="logo-preview" style="display:none">
+        <button type="button" class="logo-remove-btn" id="logo-remove-btn" style="display:none" onclick="event.stopPropagation();removeLogo()">✕</button>
+      </div>
+      <input type="file" id="h-logo-input" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="onLogoSelect(this)">
+    </div>
     <div class="action-row">
       <button class="btn btn-gold" style="flex:1" onclick="saveHeader()">Enregistrer</button>
       <button class="btn btn-outline" onclick="closeModal('headerModal')">Annuler</button>
@@ -1644,7 +1692,7 @@ function showDossierScreen() {
     const invCount = (state.invoices || []).filter(i => i.headerId === h.id).length;
     return `
       <div class="dossier-card${owner ? '' : ' shared'}" onclick="selectDossier('${h.id}')">
-        <div class="dc-icon">${owner ? '🏢' : '🤝'}</div>
+        <div class="dc-icon">${h.logo ? '<img src="'+h.logo+'" style="width:36px;height:36px;object-fit:contain;border-radius:6px">' : (owner ? '🏢' : '🤝')}</div>
         <div class="dc-name">${h.name}</div>
         <div class="dc-legal">${h.legal || ''}</div>
         <div class="dc-info">
@@ -2197,6 +2245,7 @@ async function saveHeader() {
     iban: document.getElementById('h-iban').value.trim(),
     bic: document.getElementById('h-bic').value.trim(),
     rcs: document.getElementById('h-rcs').value.trim(),
+    logo: headerLogoData || (id ? (state.headers.find(x=>x.id===id)||{}).logo : '') || '',
   };
 
   if (id) {
@@ -2228,6 +2277,17 @@ function editHeader(id) {
   document.getElementById('headerModalTitle').textContent = 'Modifier Société';
   ['name','legal','addr','zip','city','phone','email','siret','tva','iban','bic','rcs']
     .forEach(f => { document.getElementById('h-'+f).value = h[f] || ''; });
+  // Load logo if exists
+  if (h.logo) {
+    headerLogoData = h.logo;
+    showLogoPreview(h.logo);
+  } else {
+    headerLogoData = null;
+    document.getElementById('logo-preview').style.display='none';
+    document.getElementById('logo-upload-icon').style.display='';
+    document.getElementById('logo-upload-hint').textContent='Cliquez pour ajouter un logo (JPG, PNG)';
+    document.getElementById('logo-remove-btn').style.display='none';
+  }
   openModal('headerModal');
 }
 
@@ -3861,18 +3921,27 @@ function buildPDFDoc(id) {
   doc.setLineWidth(0.5);
   doc.line(0, headerH, W, headerH);
 
-  // Nom de la SCI — grand, doré, à gauche
+  // Logo si présent — en haut à gauche
+  let textStartX = PAD;
+  if (h.logo) {
+    try {
+      doc.addImage(h.logo, 'PNG', PAD, 6, 20, 20);
+      textStartX = PAD + 24;
+    } catch(e) { console.warn('Logo PDF error', e); }
+  }
+
+  // Nom de la SCI — grand, doré, à gauche (décalé si logo)
   doc.setTextColor(201, 168, 76);
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
-  doc.text(h.name || 'SCI', PAD, 16);
+  doc.text(h.name || 'SCI', textStartX, 16);
 
   // Infos société sur plusieurs lignes à gauche, sous le nom
   doc.setTextColor(180, 175, 165);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   let ly = 24;
-  infoLines.forEach(line => { doc.text(line, PAD, ly); ly += lineH; });
+  infoLines.forEach(line => { doc.text(line, textStartX, ly); ly += lineH; });
 
   // FACTURE label à droite — aligné en haut
   doc.setTextColor(201, 168, 76);
@@ -5516,6 +5585,59 @@ function resetHeaderModal() {
   document.getElementById('header-edit-id').value='';
   document.getElementById('headerModalTitle').textContent='Nouvelle Société';
   ['name','legal','addr','zip','city','phone','email','siret','tva','iban','bic','rcs'].forEach(f=>{ document.getElementById('h-'+f).value=''; });
+  // Reset logo
+  headerLogoData = null;
+  document.getElementById('logo-preview').style.display='none';
+  document.getElementById('logo-preview').src='';
+  document.getElementById('logo-upload-icon').style.display='';
+  document.getElementById('logo-upload-hint').style.display='';
+  document.getElementById('logo-remove-btn').style.display='none';
+}
+
+// ============ LOGO SOCIÉTÉ ============
+let headerLogoData = null; // base64
+
+function onLogoSelect(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { notify('Logo trop volumineux (max 2 Mo)', true); input.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    // Resize to max 400px wide for storage
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 400;
+      let w = img.width, h = img.height;
+      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      headerLogoData = canvas.toDataURL('image/png');
+      showLogoPreview(headerLogoData);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function showLogoPreview(dataUrl) {
+  const preview = document.getElementById('logo-preview');
+  preview.src = dataUrl;
+  preview.style.display = 'block';
+  document.getElementById('logo-upload-icon').style.display = 'none';
+  document.getElementById('logo-upload-hint').textContent = 'Cliquez pour changer le logo';
+  document.getElementById('logo-remove-btn').style.display = 'flex';
+}
+
+function removeLogo() {
+  headerLogoData = null;
+  document.getElementById('logo-preview').style.display = 'none';
+  document.getElementById('logo-preview').src = '';
+  document.getElementById('logo-upload-icon').style.display = '';
+  document.getElementById('logo-upload-hint').textContent = 'Cliquez pour ajouter un logo (JPG, PNG)';
+  document.getElementById('logo-upload-hint').style.display = '';
+  document.getElementById('logo-remove-btn').style.display = 'none';
 }
 // ============ PIÈCE JOINTE ÉCRITURE ============
 let ecPieceData = null;   // base64 data
