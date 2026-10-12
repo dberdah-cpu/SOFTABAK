@@ -126,6 +126,27 @@
   }
   .user-bar .logout-btn:hover { background:#fef2f2; }
 
+  /* PARTAGE */
+  .share-list { list-style:none;padding:0;margin:8px 0 0; }
+  .share-item {
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 12px;background:#f9fafb;border-radius:8px;margin-bottom:6px;
+    border:1px solid #e5e7eb;
+  }
+  .share-item .share-email { font-size:13px;color:#374151;flex:1;overflow:hidden;text-overflow:ellipsis; }
+  .share-item .share-role { font-size:11px;color:#6b7280;margin:0 8px; }
+  .share-revoke {
+    font-size:11px;color:#dc2626;background:none;border:1px solid #fecaca;
+    border-radius:6px;padding:3px 10px;cursor:pointer;font-family:'DM Sans',sans-serif;
+  }
+  .share-revoke:hover { background:#fef2f2; }
+  .share-empty { text-align:center;color:#9ca3af;font-size:13px;padding:16px 0; }
+  .share-badge {
+    display:inline-flex;align-items:center;gap:3px;
+    font-size:10px;color:#1a56db;background:#eff6ff;
+    border-radius:10px;padding:1px 8px;margin-left:6px;
+  }
+
   /* HEADER */
   .app-header {
     background: #ffffff;
@@ -1078,6 +1099,29 @@
   </div>
 </div>
 
+<!-- MODAL: Partage société -->
+<div class="modal-overlay" id="shareModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Partager cette société</div>
+    <div id="share-header-name" style="font-size:13px;color:#6b7280;margin-bottom:12px"></div>
+    <input type="hidden" id="share-header-id">
+    <div class="form-group">
+      <label class="form-label">Email du collaborateur</label>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" id="share-email" type="email" placeholder="collegue@email.com" style="flex:1">
+        <button class="btn btn-gold btn-sm" onclick="addShare()" style="white-space:nowrap">Inviter</button>
+      </div>
+    </div>
+    <div id="share-error" style="color:#dc2626;font-size:12px;min-height:16px;margin-top:-4px"></div>
+    <div style="font-size:12px;font-weight:600;color:#374151;margin-top:8px">Collaborateurs actuels</div>
+    <div id="share-list"><div class="share-empty">Aucun collaborateur</div></div>
+    <div class="action-row" style="margin-top:12px">
+      <button class="btn btn-outline" style="flex:1" onclick="closeModal('shareModal')">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Nouvelle Facture -->
 <div class="modal-overlay" id="invoiceModal">
   <div class="modal">
@@ -1202,7 +1246,8 @@ let state = {
   ecritures: [],
   banques: [],
   reglements: [],
-  exercices: []
+  exercices: [],
+  partages: []
 };
 
 let currentEcritureFilter = 'all';
@@ -1532,8 +1577,8 @@ const COL_MAP = {
     toJs: { date_debut:'dateDebut', date_fin:'dateFin', date_cloture:'dateCloture' }
   },
   headers: {
-    toDb: { tva:'tva_intra' },
-    toJs: { tva_intra:'tva' }
+    toDb: { tva:'tva_intra', userId:'user_id' },
+    toJs: { tva_intra:'tva', user_id:'userId' }
   },
   settings: {
     toDb: { startNum:'start_num', paymentDays:'payment_days', ejsPubKey:'ejs_pub_key', ejsService:'ejs_service', ejsTemplate:'ejs_template' },
@@ -1569,7 +1614,7 @@ function toJs(table, row) {
 // --- Generic Supabase CRUD ---
 // Colonnes par table (sans user_id pour éviter les erreurs PostgREST)
 const TABLE_COLS = {
-  headers: 'id,name,addr,zip,city,siret,tva_intra,phone,email,logo,legal,iban,bic,rcs,created_at',
+  headers: 'id,name,addr,zip,city,siret,tva_intra,phone,email,logo,legal,iban,bic,rcs,user_id,created_at',
   clients: 'id,name,email,phone,addr,zip,city,siret,compte,contrepartie,created_at',
   fournisseurs: 'id,nom,compte,contrepartie,siret,adresse,tel,email,created_at',
   banques: 'id,nom,iban,banque,solde_initial,devise,created_at',
@@ -1579,7 +1624,8 @@ const TABLE_COLS = {
   ecritures: 'id,date,journal,libelle,compte_debit,compte_credit,montant,ref,invoice_id,fact_fourn_id,avoir_id,tiers_id,tiers_type,piece,piece_name,created_at',
   reglements: 'id,date,banque_id,libelle,montant,sens,invoice_id,fact_fourn_id,created_at',
   settings: 'id,prefix,start_num,payment_days,legal,ejs_pub_key,ejs_service,ejs_template,updated_at',
-  exercices: 'id,label,date_debut,date_fin,status,date_cloture,resultat,created_at'
+  exercices: 'id,label,date_debut,date_fin,status,date_cloture,resultat,created_at',
+  partages: 'id,owner_id,guest_id,header_id,role,guest_email,created_at'
 };
 
 async function dbSelect(table) {
@@ -1605,7 +1651,7 @@ async function dbDelete(table, id) {
 async function loadFromSupabase() {
   showLoading(true);
   try {
-    const [headers, clients, fournisseurs, banques, invoices, facturesFourn, avoirs, ecritures, reglements, settingsRows, exercices] = await Promise.all([
+    const [headers, clients, fournisseurs, banques, invoices, facturesFourn, avoirs, ecritures, reglements, settingsRows, exercices, partages] = await Promise.all([
       dbSelect('headers'),
       dbSelect('clients'),
       dbSelect('fournisseurs'),
@@ -1616,7 +1662,8 @@ async function loadFromSupabase() {
       dbSelect('ecritures'),
       dbSelect('reglements'),
       dbSelect('settings'),
-      dbSelect('exercices')
+      dbSelect('exercices'),
+      dbSelectPartages()
     ]);
     state.headers = headers;
     state.clients = clients;
@@ -1628,6 +1675,7 @@ async function loadFromSupabase() {
     state.ecritures = ecritures;
     state.reglements = reglements;
     state.exercices = exercices;
+    state.partages = partages;
     if (settingsRows.length) {
       const s = settingsRows[0];
       state.settings = { ...state.settings, ...s };
@@ -1941,7 +1989,116 @@ async function deleteHeader(id) {
   if (!confirm('Supprimer cette société ?')) return;
   state.headers = state.headers.filter(h => h.id !== id);
   await dbDelete('headers', id);
+  // Also remove shares for this header
+  state.partages = state.partages.filter(p => p.headerId !== id);
+  await sb.from('partages').delete().eq('header_id', id);
   renderHeaders(); notify('Société supprimée');
+}
+
+// ============ PARTAGE / COLLABORATION ============
+
+async function dbSelectPartages() {
+  const cols = TABLE_COLS.partages;
+  const { data, error } = await sb.from('partages').select(cols);
+  if (error) { console.error('dbSelectPartages', error); return []; }
+  return (data || []).map(r => ({
+    id: r.id, ownerId: r.owner_id, guestId: r.guest_id,
+    headerId: r.header_id, role: r.role, guestEmail: r.guest_email, createdAt: r.created_at
+  }));
+}
+
+async function openShareModal(headerId) {
+  const h = state.headers.find(x => x.id === headerId);
+  if (!h) return;
+  document.getElementById('share-header-id').value = headerId;
+  document.getElementById('share-header-name').textContent = h.name;
+  document.getElementById('share-email').value = '';
+  document.getElementById('share-error').textContent = '';
+  await renderShareList(headerId);
+  openModal('shareModal');
+}
+
+async function renderShareList(headerId) {
+  const el = document.getElementById('share-list');
+  const shares = state.partages.filter(p => p.headerId === headerId && p.ownerId === currentUser?.id);
+  if (!shares.length) {
+    el.innerHTML = '<div class="share-empty">Aucun collaborateur</div>';
+    return;
+  }
+  // Fetch guest emails from auth — we'll use a simple lookup via Supabase
+  // Since we can't query auth.users from client, store emails from the invite
+  // For now, show guest IDs and try to resolve emails
+  const items = [];
+  for (const s of shares) {
+    const email = s.guestEmail || '(utilisateur)';
+    items.push(`
+      <div class="share-item">
+        <span class="share-email">${email}</span>
+        <span class="share-role">${s.role === 'editor' ? 'Éditeur' : 'Lecture'}</span>
+        <button class="share-revoke" onclick="revokeShare('${s.id}','${headerId}')">Révoquer</button>
+      </div>
+    `);
+  }
+  el.innerHTML = items.join('');
+}
+
+async function addShare() {
+  const headerId = document.getElementById('share-header-id').value;
+  const email = document.getElementById('share-email').value.trim().toLowerCase();
+  const errEl = document.getElementById('share-error');
+  errEl.textContent = '';
+
+  if (!email) { errEl.textContent = 'Entrez un email'; return; }
+  if (currentUser && email === currentUser.email) {
+    errEl.textContent = 'Vous ne pouvez pas vous inviter vous-même'; return;
+  }
+
+  // Look up user by email — we need a DB function for this since client can't read auth.users
+  const { data: users, error: lookupErr } = await sb.rpc('find_user_by_email', { lookup_email: email });
+  if (lookupErr || !users || !users.length) {
+    errEl.textContent = 'Aucun compte trouvé pour cet email. L\'utilisateur doit d\'abord créer un compte.';
+    return;
+  }
+  const guestId = users[0].id;
+
+  // Check if already shared
+  const exists = state.partages.find(p => p.headerId === headerId && p.guestId === guestId);
+  if (exists) {
+    errEl.textContent = 'Cette société est déjà partagée avec cet utilisateur';
+    return;
+  }
+
+  const partage = {
+    id: Date.now().toString(),
+    owner_id: currentUser.id,
+    guest_id: guestId,
+    header_id: headerId,
+    role: 'editor',
+    guest_email: email
+  };
+  const { error } = await sb.from('partages').insert(partage);
+  if (error) {
+    console.error('addShare', error);
+    errEl.textContent = 'Erreur lors du partage';
+    return;
+  }
+  state.partages.push({
+    id: partage.id, ownerId: partage.owner_id, guestId: partage.guest_id,
+    headerId: partage.header_id, role: partage.role, guestEmail: email
+  });
+  document.getElementById('share-email').value = '';
+  await renderShareList(headerId);
+  notify('Société partagée avec ' + email + ' ✓');
+}
+
+async function revokeShare(shareId, headerId) {
+  if (!confirm('Révoquer l\'accès de ce collaborateur ?')) return;
+  const { error } = await sb.from('partages').delete().eq('id', shareId);
+  if (error) { console.error('revokeShare', error); notify('Erreur', true); return; }
+  state.partages = state.partages.filter(p => p.id !== shareId);
+  await renderShareList(headerId);
+  notify('Accès révoqué');
+  renderHeaders();
 }
 
 function renderHeaders() {
@@ -1950,16 +2107,18 @@ function renderHeaders() {
     el.innerHTML = '<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg><p>Aucune société créée.</p></div>';
     return;
   }
+  const isOwner = h => !currentUser || h.userId === currentUser.id;
   el.innerHTML = state.headers.map(h => `
     <div class="card">
       <div class="card-header">
         <div>
-          <div style="font-family:'Playfair Display',serif;font-size:15px;color:var(--gold2)">${h.name}</div>
+          <div style="font-family:'Playfair Display',serif;font-size:15px;color:var(--gold2)">${h.name}${!isOwner(h) ? '<span class="share-badge">🤝 Partagée</span>' : ''}</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px">${h.legal || ''}</div>
         </div>
         <div style="display:flex;gap:6px">
+          ${isOwner(h) ? `<button class="btn btn-outline btn-sm" onclick="openShareModal('${h.id}')" title="Partager">🤝</button>` : ''}
           <button class="btn btn-outline btn-sm" onclick="editHeader('${h.id}')">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteHeader('${h.id}')">🗑️</button>
+          ${isOwner(h) ? `<button class="btn btn-danger btn-sm" onclick="deleteHeader('${h.id}')">🗑️</button>` : ''}
         </div>
       </div>
       <div style="font-size:12px;color:var(--muted);display:grid;gap:3px">
