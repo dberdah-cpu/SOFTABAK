@@ -1566,11 +1566,26 @@ function toJs(table, row) {
 }
 
 // --- Generic Supabase CRUD ---
+// Colonnes par table (sans user_id pour éviter les erreurs PostgREST)
+const TABLE_COLS = {
+  headers: 'id,name,addr,zip,city,siret,tva_intra,phone,email,logo,legal,iban,bic,rcs,created_at',
+  clients: 'id,name,email,phone,addr,zip,city,siret,compte,contrepartie,created_at',
+  fournisseurs: 'id,nom,compte,contrepartie,siret,adresse,tel,email,created_at',
+  banques: 'id,nom,iban,banque,solde_initial,devise,created_at',
+  invoices: 'id,header_id,client_id,number,date,due,subject,lines,tva_enabled,tva_rate,ht,tva_amt,ttc,status,notes,date_paiement,created_at',
+  factures_fourn: 'id,fourn_id,number,date,due,libelle,montant,compte_charge,notes,piece,piece_name,status,date_paiement,created_at',
+  avoirs: 'id,type,number,date,motif,montant,compte,tiers_id,tiers_nom,facture_ref,created_at',
+  ecritures: 'id,date,journal,libelle,compte_debit,compte_credit,montant,ref,invoice_id,fact_fourn_id,avoir_id,tiers_id,tiers_type,piece,piece_name,created_at',
+  reglements: 'id,date,banque_id,libelle,montant,sens,invoice_id,fact_fourn_id,created_at',
+  settings: 'id,prefix,start_num,payment_days,legal,ejs_pub_key,ejs_service,ejs_template,updated_at',
+  exercices: 'id,label,date_debut,date_fin,status,date_cloture,resultat,created_at'
+};
+
 async function dbSelect(table) {
-  // Select all columns except user_id (foreign key to auth.users causes schema issues)
-  const { data, error } = await sb.from(table).select('*');
+  const cols = TABLE_COLS[table] || '*';
+  const { data, error } = await sb.from(table).select(cols);
   if (error) { console.error('dbSelect '+table, error); return []; }
-  return data.map(r => { delete r.user_id; return toJs(table, r); });
+  return data.map(r => toJs(table, r));
 }
 
 async function dbUpsert(table, obj) {
