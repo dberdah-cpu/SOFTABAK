@@ -1032,6 +1032,8 @@
       <button class="cp-filter-btn"        id="filt-an"     onclick="filterEcritures('an')">AN</button>
       <button class="cp-add-btn" onclick="openJournal(currentEcritureFilter==='all'?'achat':currentEcritureFilter)">+ Saisir</button>
       <button class="cp-add-btn" onclick="openExportFEC()" style="background:#059669;margin-left:4px" title="Export FEC pour l'expert-comptable">📤 FEC</button>
+      <button class="cp-add-btn" onclick="exportJournalPDF()" style="background:#7c3aed;margin-left:4px" title="Export Journal PDF">📄</button>
+      <button class="cp-add-btn" onclick="exportJournalExcel()" style="background:#047857;margin-left:4px" title="Export Journal Excel">📊</button>
     </div>
     <div class="cp-content">
       <div id="ecritureList">
@@ -1073,8 +1075,10 @@
     <div class="cp-toolbar">
       <span style="font-size:12px;font-weight:600;color:#374151">Grand livre — par compte</span>
       <select style="margin-left:auto;padding:5px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;color:#374151;background:#fff" id="gl-compte-select" onchange="renderGrandLivre()">
-        <option value="">— Choisir un compte —</option>
+        <option value="">— Tous les comptes —</option>
       </select>
+      <button class="cp-add-btn" onclick="exportGrandLivrePDF()" style="background:#7c3aed;margin-left:4px" title="Export Grand Livre PDF">📄</button>
+      <button class="cp-add-btn" onclick="exportGrandLivreExcel()" style="background:#047857;margin-left:4px" title="Export Grand Livre Excel">📊</button>
     </div>
     <div class="cp-content">
       <div id="grandLivreContent"></div>
@@ -1956,7 +1960,7 @@ function showLoading(show) {
   function closeSplash() {
     if (!splash || splash.dataset.closing) return;
     splash.dataset.closing = '1';
-    const minTime = 1800;
+    const minTime = 2000;
     const elapsed = performance.now();
     const wait = Math.max(0, minTime - elapsed);
     setTimeout(() => {
@@ -5577,6 +5581,283 @@ function renderGrandLivre() {
         </tr>
       </tfoot>
     </table>`;
+}
+
+// ============ EXPORT JOURNAL PDF ============
+function exportJournalPDF() {
+  let list = [...dossierEcritures()].sort((a,b) => a.date.localeCompare(b.date));
+  if (currentEcritureFilter !== 'all') list = list.filter(e => e.journal === currentEcritureFilter);
+  if (!list.length) { notify('Aucune écriture à exporter', true); return; }
+
+  const h = currentDossier ? state.headers.find(x=>x.id===currentDossier.id) : state.headers[0];
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4', orientation:'landscape' });
+  const W = 297, PAD = 10;
+
+  // Title bar
+  doc.setFillColor(30,28,26);
+  doc.rect(0,0,W,18,'F');
+  doc.setTextColor(201,168,76);
+  doc.setFontSize(14);
+  doc.setFont('helvetica','bold');
+  const jLabel = currentEcritureFilter==='all' ? 'Tous journaux' : (JOURNAL_LABEL[currentEcritureFilter]||currentEcritureFilter);
+  doc.text(`Journal comptable — ${jLabel}`, PAD, 12);
+  doc.setTextColor(180,175,165);
+  doc.setFontSize(8);
+  doc.setFont('helvetica','normal');
+  doc.text(h?.name || '', W - PAD, 8, {align:'right'});
+  doc.text('Édité le ' + new Date().toLocaleDateString('fr-FR'), W - PAD, 14, {align:'right'});
+
+  // Table header
+  let y = 24;
+  const cols = [PAD, PAD+22, PAD+36, PAD+130, PAD+160, PAD+190, PAD+220];
+  const colLabels = ['Date','Jnl','Libellé / Pièce','Cpte Débit','Cpte Crédit','Montant'];
+
+  function drawTableHeader() {
+    doc.setFillColor(245,245,248);
+    doc.rect(PAD, y, W-2*PAD, 7, 'F');
+    doc.setTextColor(80,80,80);
+    doc.setFontSize(7);
+    doc.setFont('helvetica','bold');
+    colLabels.forEach((l,i) => {
+      if (i >= 3) doc.text(l, cols[i+1]-2, y+5, {align:'right'});
+      else doc.text(l, cols[i], y+5);
+    });
+    y += 9;
+  }
+  drawTableHeader();
+
+  let totalD = 0, totalC = 0;
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(7);
+  list.forEach(e => {
+    if (y > 195) { doc.addPage(); y = 15; drawTableHeader(); }
+    doc.setTextColor(140,140,140);
+    doc.text(fmtDate(e.date), cols[0], y);
+    doc.setTextColor(60,60,60);
+    doc.text(JOURNAL_MAP[e.journal]||e.journal, cols[1], y);
+    doc.setTextColor(30,30,30);
+    const lib = (e.libelle||'').substring(0,50) + (e.ref ? ' ('+e.ref+')' : '');
+    doc.text(lib.substring(0,60), cols[2], y);
+    doc.text(e.compteDebit+' '+pcLib(e.compteDebit).substring(0,18), cols[3], y);
+    doc.text(e.compteCredit+' '+pcLib(e.compteCredit).substring(0,18), cols[4], y);
+    doc.setTextColor(30,30,30);
+    doc.text(fmt(e.montant) + ' €', cols[6]-2, y, {align:'right'});
+    totalD += e.montant;
+    totalC += e.montant;
+    y += 5;
+  });
+
+  // Totals
+  y += 3;
+  doc.setDrawColor(200,200,200);
+  doc.line(PAD, y, W-PAD, y);
+  y += 5;
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(8);
+  doc.setTextColor(30,30,30);
+  doc.text('Total :', cols[2], y);
+  doc.text(fmt(totalD) + ' €', cols[6]-2, y, {align:'right'});
+  doc.text(list.length + ' écritures', cols[0], y);
+
+  downloadPDFDoc(doc, `Journal_${jLabel.replace(/\s/g,'_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+  notify('Journal PDF exporté ✓');
+}
+
+// ============ EXPORT JOURNAL EXCEL ============
+function exportJournalExcel() {
+  let list = [...dossierEcritures()].sort((a,b) => a.date.localeCompare(b.date));
+  if (currentEcritureFilter !== 'all') list = list.filter(e => e.journal === currentEcritureFilter);
+  if (!list.length) { notify('Aucune écriture à exporter', true); return; }
+
+  const jLabel = currentEcritureFilter==='all' ? 'Tous_journaux' : (JOURNAL_LABEL[currentEcritureFilter]||currentEcritureFilter);
+  const rows = [['Date','Journal','Libellé','Pièce','Compte Débit','Lib. Débit','Compte Crédit','Lib. Crédit','Montant']];
+  list.forEach(e => {
+    rows.push([
+      e.date,
+      JOURNAL_MAP[e.journal]||e.journal,
+      e.libelle||'',
+      e.ref||'',
+      e.compteDebit,
+      pcLib(e.compteDebit),
+      e.compteCredit,
+      pcLib(e.compteCredit),
+      e.montant
+    ]);
+  });
+  exportCSV(rows, `Journal_${jLabel}_${new Date().toISOString().split('T')[0]}.csv`);
+  notify('Journal Excel (CSV) exporté ✓');
+}
+
+// ============ EXPORT GRAND LIVRE PDF ============
+function exportGrandLivrePDF() {
+  const selectedCode = document.getElementById('gl-compte-select').value;
+  const bal = computeBalance();
+  const codes = selectedCode ? [selectedCode] : Object.keys(bal).sort();
+  if (!codes.length) { notify('Aucune écriture', true); return; }
+
+  const h = currentDossier ? state.headers.find(x=>x.id===currentDossier.id) : state.headers[0];
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const W = 210, PAD = 12;
+
+  // Title bar
+  doc.setFillColor(30,28,26);
+  doc.rect(0,0,W,18,'F');
+  doc.setTextColor(201,168,76);
+  doc.setFontSize(14);
+  doc.setFont('helvetica','bold');
+  doc.text('Grand Livre' + (selectedCode ? ' — Compte ' + selectedCode : ''), PAD, 12);
+  doc.setTextColor(180,175,165);
+  doc.setFontSize(8);
+  doc.setFont('helvetica','normal');
+  doc.text(h?.name || '', W - PAD, 8, {align:'right'});
+  doc.text('Édité le ' + new Date().toLocaleDateString('fr-FR'), W - PAD, 14, {align:'right'});
+
+  let y = 24;
+
+  codes.forEach(code => {
+    const lignes = (dossierEcritures()||[])
+      .filter(e => e.compteDebit===code || e.compteCredit===code)
+      .sort((a,b) => a.date.localeCompare(b.date));
+    if (!lignes.length) return;
+
+    // Check page space
+    if (y > 250) { doc.addPage(); y = 15; }
+
+    // Account header
+    doc.setFillColor(30,58,138);
+    doc.rect(PAD, y, W-2*PAD, 7, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(9);
+    doc.setFont('helvetica','bold');
+    doc.text(`${code} — ${pcLib(code)}`, PAD+3, y+5);
+    y += 10;
+
+    // Column headers
+    doc.setFillColor(245,245,248);
+    doc.rect(PAD, y, W-2*PAD, 6, 'F');
+    doc.setTextColor(80,80,80);
+    doc.setFontSize(7);
+    doc.setFont('helvetica','bold');
+    doc.text('Date', PAD+2, y+4);
+    doc.text('Libellé', PAD+24, y+4);
+    doc.text('Débit', PAD+120, y+4, {align:'right'});
+    doc.text('Crédit', PAD+148, y+4, {align:'right'});
+    doc.text('Solde', W-PAD-2, y+4, {align:'right'});
+    y += 8;
+
+    let cumul = 0;
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7);
+    lignes.forEach(e => {
+      if (y > 275) { doc.addPage(); y = 15; }
+      const isD = e.compteDebit===code;
+      const d = isD ? e.montant : 0;
+      const c = isD ? 0 : e.montant;
+      cumul += isD ? e.montant : -e.montant;
+
+      doc.setTextColor(140,140,140);
+      doc.text(fmtDate(e.date), PAD+2, y);
+      doc.setTextColor(50,50,50);
+      doc.text((e.libelle||'').substring(0,45), PAD+24, y);
+      doc.setTextColor(30,30,30);
+      doc.text(d>0 ? fmt(d)+' €' : '—', PAD+120, y, {align:'right'});
+      doc.text(c>0 ? fmt(c)+' €' : '—', PAD+148, y, {align:'right'});
+      doc.setTextColor(cumul>=0 ? 5 : 220, cumul>=0 ? 150 : 38, cumul>=0 ? 105 : 38);
+      doc.text(fmt(Math.abs(cumul))+' '+(cumul>=0?'D':'C'), W-PAD-2, y, {align:'right'});
+      y += 4.5;
+    });
+
+    // Subtotal
+    doc.setDrawColor(200,200,200);
+    doc.line(PAD, y, W-PAD, y);
+    y += 4;
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(7);
+    doc.setTextColor(30,30,30);
+    doc.text('Solde final :', PAD+24, y);
+    doc.setTextColor(cumul>=0 ? 5 : 220, cumul>=0 ? 150 : 38, cumul>=0 ? 105 : 38);
+    doc.text(fmt(Math.abs(cumul))+' '+(cumul>=0?'D':'C'), W-PAD-2, y, {align:'right'});
+    y += 10;
+  });
+
+  const suffix = selectedCode || 'Complet';
+  downloadPDFDoc(doc, `GrandLivre_${suffix}_${new Date().toISOString().split('T')[0]}.pdf`);
+  notify('Grand Livre PDF exporté ✓');
+}
+
+// ============ EXPORT GRAND LIVRE EXCEL ============
+function exportGrandLivreExcel() {
+  const selectedCode = document.getElementById('gl-compte-select').value;
+  const bal = computeBalance();
+  const codes = selectedCode ? [selectedCode] : Object.keys(bal).sort();
+  if (!codes.length) { notify('Aucune écriture', true); return; }
+
+  const rows = [['Compte','Libellé compte','Date','Libellé écriture','Pièce','Débit','Crédit','Solde cumulé']];
+
+  codes.forEach(code => {
+    const lignes = (dossierEcritures()||[])
+      .filter(e => e.compteDebit===code || e.compteCredit===code)
+      .sort((a,b) => a.date.localeCompare(b.date));
+    if (!lignes.length) return;
+
+    let cumul = 0;
+    lignes.forEach(e => {
+      const isD = e.compteDebit===code;
+      const d = isD ? e.montant : 0;
+      const c = isD ? 0 : e.montant;
+      cumul += isD ? e.montant : -e.montant;
+      rows.push([code, pcLib(code), e.date, e.libelle||'', e.ref||'', d, c, cumul]);
+    });
+    // Blank separator
+    rows.push([]);
+  });
+
+  const suffix = selectedCode || 'Complet';
+  exportCSV(rows, `GrandLivre_${suffix}_${new Date().toISOString().split('T')[0]}.csv`);
+  notify('Grand Livre Excel (CSV) exporté ✓');
+}
+
+// ============ UTILITAIRES EXPORT ============
+function downloadPDFDoc(doc, filename) {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (isIOS) {
+    const dataUri = doc.output('datauristring');
+    const newTab = window.open();
+    if (newTab) {
+      newTab.document.write('<html><head><title>'+filename+'</title></head><body style="margin:0"><iframe src="'+dataUri+'" style="width:100%;height:100vh;border:none"></iframe></body></html>');
+      newTab.document.close();
+    } else {
+      window.location.href = dataUri;
+    }
+  } else {
+    try {
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch(e) { doc.save(filename); }
+  }
+}
+
+function exportCSV(rows, filename) {
+  const csv = rows.map(r => r.map(c => {
+    if (c === undefined || c === null) return '';
+    const s = String(c);
+    if (s.includes(';') || s.includes('"') || s.includes('\n')) return '"'+s.replace(/"/g,'""')+'"';
+    return s;
+  }).join(';')).join('\r\n');
+
+  const BOM = '﻿';
+  const blob = new Blob([BOM + csv], { type:'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 // resetHeaderModal et resetEcritureModal ici (utilisés par showPage)
