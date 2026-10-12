@@ -2473,7 +2473,35 @@ function removePieceFF() {
   document.getElementById('ff-piece-preview').style.display = 'none';
 }
 
-async function runOCR(fileOrBlob) {
+function fileToCanvas(file) {
+  return new Promise((resolve, reject) => {
+    if (file.type === 'application/pdf') {
+      reject(new Error('PDF non supporté pour l\'OCR. Utilisez une photo ou un scan image (JPG/PNG).'));
+      return;
+    }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      // Limiter la taille pour fiabilité OCR
+      const maxDim = 2400;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (w > maxDim || h > maxDim) {
+        const scale = maxDim / Math.max(w, h);
+        w = Math.round(w * scale); h = Math.round(h * scale);
+      }
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Impossible de lire l\'image')); };
+    img.src = url;
+  });
+}
+
+async function runOCR(file) {
   const progress = document.getElementById('ocr-progress');
   const bar = document.getElementById('ocr-bar');
   const status = document.getElementById('ocr-status');
@@ -2487,15 +2515,10 @@ async function runOCR(fileOrBlob) {
     return;
   }
 
-  // Convertir en Object URL si c'est un File/Blob (plus fiable que base64)
-  let imageSource = fileOrBlob;
-  let objectUrl = null;
-  if (fileOrBlob instanceof Blob) {
-    objectUrl = URL.createObjectURL(fileOrBlob);
-    imageSource = objectUrl;
-  }
-
   try {
+    status.textContent = 'Préparation de l\'image…';
+    const canvas = await fileToCanvas(file);
+
     const worker = await Tesseract.createWorker('fra', 1, {
       logger: m => {
         if (m.status === 'recognizing text') {
@@ -2508,7 +2531,7 @@ async function runOCR(fileOrBlob) {
     bar.style.width = '30%';
     status.textContent = 'Analyse du texte…';
 
-    const { data: { text } } = await worker.recognize(imageSource);
+    const { data: { text } } = await worker.recognize(canvas);
     await worker.terminate();
 
     bar.style.width = '100%';
@@ -2523,8 +2546,6 @@ async function runOCR(fileOrBlob) {
     bar.style.width = '100%';
     bar.style.background = '#dc2626';
     console.error('OCR error:', err);
-  } finally {
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
 }
 
@@ -4911,7 +4932,7 @@ function onEcPieceWithOCR(input) {
   reader.readAsDataURL(file);
 }
 
-async function runEcOCR(fileOrBlob) {
+async function runEcOCR(file) {
   const progress = document.getElementById('ec-ocr-progress');
   const bar = document.getElementById('ec-ocr-bar');
   const status = document.getElementById('ec-ocr-status');
@@ -4926,14 +4947,10 @@ async function runEcOCR(fileOrBlob) {
     return;
   }
 
-  let imageSource = fileOrBlob;
-  let objectUrl = null;
-  if (fileOrBlob instanceof Blob) {
-    objectUrl = URL.createObjectURL(fileOrBlob);
-    imageSource = objectUrl;
-  }
-
   try {
+    status.textContent = 'Préparation de l\'image…';
+    const canvas = await fileToCanvas(file);
+
     const worker = await Tesseract.createWorker('fra', 1, {
       logger: m => {
         if (m.status === 'recognizing text') {
@@ -4945,7 +4962,7 @@ async function runEcOCR(fileOrBlob) {
 
     bar.style.width = '30%';
     status.textContent = 'Analyse du texte…';
-    const { data: { text } } = await worker.recognize(imageSource);
+    const { data: { text } } = await worker.recognize(canvas);
     await worker.terminate();
 
     bar.style.width = '100%';
@@ -4961,8 +4978,6 @@ async function runEcOCR(fileOrBlob) {
     bar.style.width = '100%';
     bar.style.background = '#dc2626';
     console.error('EC OCR error:', err);
-  } finally {
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
 }
 
