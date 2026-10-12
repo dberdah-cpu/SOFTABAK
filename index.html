@@ -750,7 +750,14 @@
       <label for="login-email">Email</label>
       <input type="email" id="login-email" required autocomplete="email" placeholder="votre@email.com">
       <label for="login-password">Mot de passe</label>
-      <input type="password" id="login-password" required autocomplete="current-password" placeholder="••••••••">
+      <div style="position:relative">
+        <input type="password" id="login-password" required autocomplete="current-password" placeholder="••••••••" style="padding-right:42px">
+        <button type="button" onclick="togglePasswordVisibility()" id="toggle-pw-btn" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;padding:4px;font-size:18px" title="Afficher le mot de passe">👁️</button>
+      </div>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="login-remember" checked style="width:16px;height:16px;accent-color:#1a56db;cursor:pointer">
+        <label for="login-remember" style="margin:0;font-size:12px;color:#6b7280;cursor:pointer">Se souvenir de moi</label>
+      </div>
       <div id="signup-name-group" style="display:none">
         <label for="login-name">Nom complet</label>
         <input type="text" id="login-name" placeholder="Prénom Nom" autocomplete="name">
@@ -1391,6 +1398,20 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let currentUser = null;
 let authMode = 'login'; // 'login' or 'signup'
 
+function togglePasswordVisibility() {
+  const pw = document.getElementById('login-password');
+  const btn = document.getElementById('toggle-pw-btn');
+  if (pw.type === 'password') {
+    pw.type = 'text';
+    btn.textContent = '🙈';
+    btn.title = 'Masquer le mot de passe';
+  } else {
+    pw.type = 'password';
+    btn.textContent = '👁️';
+    btn.title = 'Afficher le mot de passe';
+  }
+}
+
 function toggleAuthMode() {
   authMode = authMode === 'login' ? 'signup' : 'login';
   document.getElementById('login-title').textContent = authMode === 'login' ? 'Connexion' : 'Créer un compte';
@@ -1433,6 +1454,9 @@ async function handleAuth(e) {
       if (result.error) throw result.error;
     }
     currentUser = result.data.user;
+    // Sauvegarder le choix "Se souvenir de moi"
+    const remember = document.getElementById('login-remember').checked;
+    try { localStorage.setItem('softabak_remember', remember ? 'yes' : 'no'); } catch(e) {}
     onLoginSuccess();
   } catch(err) {
     errEl.style.color = '#dc2626';
@@ -1456,6 +1480,7 @@ async function onLoginSuccess() {
 async function handleLogout() {
   await sb.auth.signOut();
   currentUser = null;
+  localStorage.removeItem('softabak_remember');
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('user-bar').style.display = 'none';
   // Reset state
@@ -1465,6 +1490,15 @@ async function handleLogout() {
   state.exercices = [];
   state.settings = { prefix:'FAC', startNum:1, paymentDays:30 };
 }
+
+// Si "Se souvenir de moi" est décoché, déconnecter à la fermeture
+window.addEventListener('beforeunload', () => {
+  try {
+    if (currentUser && localStorage.getItem('softabak_remember') === 'no') {
+      sb.auth.signOut();
+    }
+  } catch(e) {}
+});
 
 // --- camelCase ↔ snake_case mapping per table ---
 const COL_MAP = {
@@ -1533,9 +1567,10 @@ function toJs(table, row) {
 
 // --- Generic Supabase CRUD ---
 async function dbSelect(table) {
+  // Select all columns except user_id (foreign key to auth.users causes schema issues)
   const { data, error } = await sb.from(table).select('*');
   if (error) { console.error('dbSelect '+table, error); return []; }
-  return data.map(r => toJs(table, r));
+  return data.map(r => { delete r.user_id; return toJs(table, r); });
 }
 
 async function dbUpsert(table, obj) {
