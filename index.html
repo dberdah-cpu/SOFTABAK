@@ -1457,12 +1457,13 @@ async function handleAuth(e) {
     // Sauvegarder le choix "Se souvenir de moi"
     const remember = document.getElementById('login-remember').checked;
     try { localStorage.setItem('softabak_remember', remember ? 'yes' : 'no'); } catch(e) {}
-    onLoginSuccess();
+    await onLoginSuccess();
   } catch(err) {
     errEl.style.color = '#dc2626';
     const msg = err.message || String(err);
     if (msg.includes('Invalid login')) errEl.textContent = 'Email ou mot de passe incorrect';
     else if (msg.includes('already registered')) errEl.textContent = 'Cet email est déjà utilisé';
+    else if (msg.includes('Database error')) errEl.textContent = 'Erreur serveur — réessayez dans un instant';
     else errEl.textContent = msg;
     btn.disabled = false;
     btn.textContent = authMode === 'login' ? 'Se connecter' : 'Créer mon compte';
