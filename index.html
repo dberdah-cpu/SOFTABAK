@@ -172,7 +172,8 @@
   /* AUTOCOMPLETION PLAN COMPTABLE */
   .pc-ac-wrap { position:relative; }
   .pc-ac-dropdown {
-    position:absolute;top:100%;left:0;right:0;z-index:9999;
+    position:absolute;top:100%;left:0;z-index:9999;
+    min-width:280px;width:max-content;max-width:calc(100vw - 32px);
     background:#fff;border:1px solid #d1d5db;border-radius:8px;
     box-shadow:0 8px 24px rgba(0,0,0,.15);
     max-height:260px;overflow-y:auto;overflow-x:hidden;
@@ -6876,16 +6877,14 @@ function initPCAutocomplete(input, opts={}) {
   // Retirer le datalist natif
   input.removeAttribute('list');
 
-  // Wrapper
-  const wrap = document.createElement('div');
-  wrap.className = 'pc-ac-wrap';
-  input.parentNode.insertBefore(wrap, input);
-  wrap.appendChild(input);
+  // Utiliser le parent existant comme ancre (pas de wrapper supplémentaire)
+  const anchor = input.parentNode;
+  anchor.style.position = 'relative';
 
   // Dropdown
   const dd = document.createElement('div');
   dd.className = 'pc-ac-dropdown';
-  wrap.appendChild(dd);
+  anchor.appendChild(dd);
 
   let items = [];
   let activeIdx = -1;
@@ -6988,7 +6987,7 @@ function initPCAutocomplete(input, opts={}) {
 
   // Fermer quand on clique ailleurs
   document.addEventListener('click', e => {
-    if (!wrap.contains(e.target)) dd.classList.remove('show');
+    if (!anchor.contains(e.target)) dd.classList.remove('show');
   }, true);
 }
 
