@@ -169,6 +169,36 @@
     display:flex;align-items:center;justify-content:center;line-height:1;
   }
 
+  /* AUTOCOMPLETION PLAN COMPTABLE */
+  .pc-ac-wrap { position:relative; }
+  .pc-ac-dropdown {
+    position:absolute;top:100%;left:0;right:0;z-index:9999;
+    background:#fff;border:1px solid #d1d5db;border-radius:8px;
+    box-shadow:0 8px 24px rgba(0,0,0,.15);
+    max-height:260px;overflow-y:auto;overflow-x:hidden;
+    margin-top:2px;display:none;
+    -webkit-overflow-scrolling:touch;
+  }
+  .pc-ac-dropdown.show { display:block; }
+  .pc-ac-item {
+    padding:7px 10px;cursor:pointer;display:flex;align-items:baseline;gap:6px;
+    font-size:12px;color:#374151;border-bottom:1px solid #f3f4f6;
+    transition:background .1s;
+  }
+  .pc-ac-item:last-child { border-bottom:none; }
+  .pc-ac-item:hover, .pc-ac-item.active { background:#eff6ff; }
+  .pc-ac-item .pc-code {
+    font-family:monospace;font-weight:700;color:#1d4ed8;
+    min-width:55px;font-size:13px;
+  }
+  .pc-ac-item .pc-lib { color:#374151;flex:1;line-height:1.3; }
+  .pc-ac-item .pc-match { background:#fef3c7;border-radius:2px;padding:0 1px; }
+  .pc-ac-classe {
+    padding:5px 10px;font-size:10px;font-weight:700;color:#6b7280;
+    text-transform:uppercase;letter-spacing:.5px;background:#f9fafb;
+    border-bottom:1px solid #e5e7eb;position:sticky;top:0;
+  }
+
   /* DOSSIER SELECTION SCREEN */
   #dossier-screen {
     position:fixed;inset:0;z-index:9500;
@@ -4788,6 +4818,8 @@ function renderVentilation() {
       ${ecVentilation.length>1?`<button onclick="removeVentilation('${v.id}')" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px;padding:0 4px">×</button>`:'<div style="width:24px"></div>'}
     </div>`).join('');
   updateEcTotaux();
+  // Init autocomplétion sur les nouveaux inputs compte
+  if (typeof initVentilationPCAutocomplete === 'function') setTimeout(initVentilationPCAutocomplete, 10);
 }
 
 function updateVentLine(id, field, val) {
@@ -6828,7 +6860,158 @@ function generateFEC() {
 </div>
 
 <script>
-// Datalist plan comptable + affichage libellé
+// ============ AUTOCOMPLÉTION PLAN COMPTABLE ============
+
+const PC_CLASSES = {
+  '1':'Comptes de capitaux','2':'Immobilisations','3':'Stocks',
+  '4':'Comptes de tiers','5':'Comptes financiers',
+  '6':'Comptes de charges','7':'Comptes de produits','8':'Comptes spéciaux'
+};
+
+// Composant d'autocomplétion pour champs de compte
+function initPCAutocomplete(input, opts={}) {
+  if (input._pcAcInit) return;
+  input._pcAcInit = true;
+
+  // Retirer le datalist natif
+  input.removeAttribute('list');
+
+  // Wrapper
+  const wrap = document.createElement('div');
+  wrap.className = 'pc-ac-wrap';
+  input.parentNode.insertBefore(wrap, input);
+  wrap.appendChild(input);
+
+  // Dropdown
+  const dd = document.createElement('div');
+  dd.className = 'pc-ac-dropdown';
+  wrap.appendChild(dd);
+
+  let items = [];
+  let activeIdx = -1;
+
+  function filterPC(query) {
+    const q = (query||'').trim();
+    if (!q) return [];
+    // Filtre : le code COMMENCE par la saisie, ou le libellé contient la saisie
+    const ql = q.toLowerCase();
+    return PLAN_COMPTABLE.filter(c =>
+      c.code.startsWith(q) || c.lib.toLowerCase().includes(ql)
+    );
+  }
+
+  function highlightMatch(text, query) {
+    if (!query) return text;
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return text;
+    return text.slice(0,idx) + '<span class="pc-match">' + text.slice(idx,idx+query.length) + '</span>' + text.slice(idx+query.length);
+  }
+
+  function render(query) {
+    items = filterPC(query);
+    if (!items.length) { dd.classList.remove('show'); return; }
+
+    let html = '';
+    let lastClasse = '';
+    items.forEach((c, i) => {
+      const classe = c.code.charAt(0);
+      if (classe !== lastClasse) {
+        lastClasse = classe;
+        html += `<div class="pc-ac-classe">Classe ${classe} — ${PC_CLASSES[classe]||''}</div>`;
+      }
+      const codeHL = highlightMatch(c.code, query);
+      const libHL = highlightMatch(c.lib, query);
+      html += `<div class="pc-ac-item${i===activeIdx?' active':''}" data-idx="${i}" data-code="${c.code}">
+        <span class="pc-code">${codeHL}</span>
+        <span class="pc-lib">${libHL}</span>
+      </div>`;
+    });
+    dd.innerHTML = html;
+    dd.classList.add('show');
+  }
+
+  function select(code) {
+    input.value = code;
+    dd.classList.remove('show');
+    activeIdx = -1;
+    // Déclencher l'événement input pour les callbacks existants
+    input.dispatchEvent(new Event('input', { bubbles:true }));
+    input.dispatchEvent(new Event('change', { bubbles:true }));
+    // Mettre à jour le libellé en dessous si présent
+    if (opts.labelEl) {
+      const entry = PLAN_COMPTABLE.find(x => x.code === code);
+      opts.labelEl.textContent = entry ? entry.lib : '';
+    }
+    if (opts.onSelect) opts.onSelect(code);
+  }
+
+  function scrollToActive() {
+    const el = dd.querySelector('.pc-ac-item.active');
+    if (el) el.scrollIntoView({ block:'nearest' });
+  }
+
+  input.addEventListener('input', () => {
+    activeIdx = -1;
+    render(input.value);
+  });
+
+  input.addEventListener('focus', () => {
+    if (input.value.trim()) render(input.value);
+  });
+
+  input.addEventListener('keydown', e => {
+    if (!dd.classList.contains('show')) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx+1, items.length-1);
+      render(input.value);
+      scrollToActive();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx-1, 0);
+      render(input.value);
+      scrollToActive();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeIdx >= 0 && activeIdx < items.length) {
+        select(items[activeIdx].code);
+      }
+    } else if (e.key === 'Escape') {
+      dd.classList.remove('show');
+    }
+  });
+
+  dd.addEventListener('click', e => {
+    const item = e.target.closest('.pc-ac-item');
+    if (item) select(item.dataset.code);
+  });
+
+  // Fermer quand on clique ailleurs
+  document.addEventListener('click', e => {
+    if (!wrap.contains(e.target)) dd.classList.remove('show');
+  }, true);
+}
+
+// Initialiser tous les inputs compte statiques au chargement
+function initAllPCAutocomplete() {
+  // Input tiers-compte dans la modale écriture
+  const tiersCompte = document.getElementById('ec-tiers-compte');
+  if (tiersCompte) {
+    const labelEl = document.getElementById('ec-tiers-compte-lib');
+    initPCAutocomplete(tiersCompte, { labelEl });
+  }
+}
+
+// Initialiser les inputs compte dans les lignes de ventilation (appelé dynamiquement)
+function initVentilationPCAutocomplete() {
+  document.querySelectorAll('#ec-ventilation-body input[placeholder="Compte"]').forEach(inp => {
+    if (inp._pcAcInit) return;
+    const labelDiv = inp.parentNode?.querySelector('div');
+    initPCAutocomplete(inp, { labelEl: labelDiv });
+  });
+}
+
+// Datalist plan comptable (conservé pour compatibilité)
 (function buildDatalist() {
   const dl = document.getElementById('pc-list');
   if (!dl) return;
@@ -6842,6 +7025,9 @@ function renderPCSuggestion(inputId, labelId) {
   const entry = PLAN_COMPTABLE.find(c => c.code === val);
   label.textContent = entry ? entry.lib : '';
 }
+
+// Init autocomplétion au chargement
+setTimeout(initAllPCAutocomplete, 100);
 
 // ============ SAUVEGARDE & RESTAURATION ============
 
@@ -7345,11 +7531,8 @@ function showConfirmModal(title, bodyHtml, onConfirm) {
 initCompta();
 renderEcritures();
 
-// Remplir datalist plan comptable au démarrage
-(function() {
-  const dl = document.getElementById('pc-list');
-  if (dl) dl.innerHTML = PLAN_COMPTABLE.map(c=>`<option value="${c.code}">${c.code} — ${c.lib}</option>`).join('');
-})();
+// Re-init autocomplétion plan comptable
+setTimeout(initAllPCAutocomplete, 200);
 </script>
 </body>
 </html>
