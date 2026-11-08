@@ -4786,14 +4786,14 @@ function updateKilometreUI() {
   const btnTerm = document.getElementById('ec-btn-terminer');
   const btnAnnul = document.getElementById('ec-btn-annuler');
   if (ecKilometreCount > 0) {
-    bar.style.display = 'flex';
-    msg.textContent = `${ecKilometreCount} écriture(s) saisie(s)`;
-    btnTerm.style.display = '';
-    btnAnnul.style.display = 'none';
+    if (bar) bar.style.display = 'flex';
+    if (msg) msg.textContent = `${ecKilometreCount} écriture(s) saisie(s)`;
+    if (btnTerm) { btnTerm.style.display = 'inline-block'; }
+    if (btnAnnul) btnAnnul.style.display = 'none';
   } else {
-    bar.style.display = 'none';
-    btnTerm.style.display = 'none';
-    btnAnnul.style.display = '';
+    if (bar) bar.style.display = 'none';
+    if (btnTerm) btnTerm.style.display = 'none';
+    if (btnAnnul) btnAnnul.style.display = 'inline-block';
   }
 }
 
@@ -6738,7 +6738,7 @@ function generateFEC() {
 
     <datalist id="pc-list"></datalist>
 
-    <div id="ec-kilometre-bar" style="display:none;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:none;align-items:center;gap:8px">
+    <div id="ec-kilometre-bar" style="display:none;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:8px 12px;margin-bottom:10px;align-items:center;gap:8px">
       <span style="font-size:20px">✅</span>
       <span style="font-size:12px;color:#065f46;font-weight:600" id="ec-kilometre-msg">0 écriture(s) saisie(s)</span>
     </div>
