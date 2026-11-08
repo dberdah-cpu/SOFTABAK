@@ -1999,7 +1999,7 @@ function toJs(table, row) {
 // --- Generic Supabase CRUD ---
 // Colonnes par table (sans user_id pour éviter les erreurs PostgREST)
 const TABLE_COLS = {
-  headers: 'id,name,addr,zip,city,siret,tva_intra,phone,email,logo,legal,iban,bic,rcs,user_id,created_at',
+  headers: 'id,name,addr,zip,city,siret,tva_intra,phone,email,logo,legal,iban,bic,rcs,user_id,type_societe,created_at',
   clients: 'id,name,email,phone,addr,zip,city,siret,compte,contrepartie,created_at',
   fournisseurs: 'id,nom,compte,contrepartie,siret,adresse,tel,email,created_at',
   banques: 'id,nom,iban,banque,solde_initial,devise,created_at',
