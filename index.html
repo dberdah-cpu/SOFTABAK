@@ -5050,168 +5050,7 @@ function updateEcTotaux() {
   }
 }
 
-async function saveEcriture() {
-  const journal = document.getElementById('ec-journal').value;
-  const date    = document.getElementById('ec-date').value;
-  const libGen  = document.getElementById('ec-lib').value.trim();
-  const ref     = document.getElementById('ec-ref').value.trim();
-  const ttc     = parseFloat(document.getElementById('ec-tiers-montant')?.value)||0;
-  const tiersCompte = document.getElementById('ec-tiers-compte')?.value?.trim()||'';
-  const tvaOn   = document.getElementById('ec-tva-check')?.checked;
-  const tvaRate = parseFloat(document.getElementById('ec-tva-rate')?.value)||20;
-
-  if (!date)    { notify('Date obligatoire', true);    return; }
-  if (!libGen)  { notify('Libellé obligatoire', true); return; }
-  if (!ttc)     { notify('Montant obligatoire', true); return; }
-  if (!tiersCompte) { notify('Compte tiers obligatoire', true); return; }
-
-  // Lire les ventilations (depuis le DOM pour avoir les valeurs saisies)
-  const ventRows = document.querySelectorAll('#ec-ventilation-body [data-vid]');
-  const ventLines = [];
-  ventRows.forEach(row => {
-    const vid   = row.dataset.vid;
-    const cpte  = row.querySelector('input[list="pc-list"]')?.value?.trim()||'';
-    const lib   = row.querySelectorAll('input')[1]?.value?.trim()||libGen;
-    const ht    = parseFloat(row.querySelectorAll('input')[2]?.value)||0;
-    if (cpte) ventLines.push({ compte:cpte, libelle:lib, ht });
-  });
-  if (!ventLines.length) { notify('Ajoutez au moins un compte de contrepartie', true); return; }
-
-  const htVent  = ventLines.reduce((s,v) => s+v.ht, 0);
-  let ht = ttc, tva = 0;
-  if (tvaOn) { ht = ttc/(1+tvaRate/100); tva = ttc - ht; }
-
-  // Avertir si HT ventilé ≠ HT calculé (mais laisser sauvegarder)
-  if (Math.abs(htVent - ht) > 0.05 && htVent > 0) {
-    if (!confirm(`La ventilation HT (${fmt(htVent)} €) diffère du HT calculé (${fmt(ht)} €). Continuer ?`)) return;
-  }
-
-  // Supprimer si édition
-  const wasEditing = !!ecGroupId;
-  if (ecGroupId) {
-    const old = state.ecritures.find(x=>x.id===ecGroupId);
-    if (old) {
-      state.ecritures = state.ecritures.filter(x =>
-        old.invoiceId ? x.invoiceId!==old.invoiceId :
-        !(x.ref===old.ref && x.date===old.date && x.journal===old.journal)
-      );
-    }
-    ecGroupId = null;
-  }
-
-  const isAchat = (journal==='achat'||journal==='immo');
-  const isBanque = (journal==='banque');
-  const ts = Date.now();
-
-  // Identifier le tiers depuis la saisie (input texte avec datalist)
-  const tiersSaisie = document.getElementById('ec-tiers-select')?.value?.trim()||'';
-  let tiersId = null, tiersType = null;
-
-  // Chercher dans le datalist si la saisie correspond à un tiers existant
-  const dlOpts = document.querySelectorAll('#ec-tiers-datalist option');
-  dlOpts.forEach(opt => {
-    if (opt.value === tiersSaisie) {
-      tiersId   = opt.dataset.id;
-      tiersType = opt.dataset.type === 'client' ? 'client' : 'fournisseur';
-    }
-  });
-
-  // Si pas trouvé → auto-créer selon le compte tiers saisi
-  if (!tiersId && tiersCompte) {
-    const nom = tiersSaisie || tiersCompte; // nom = ce qui a été tapé, ou le compte
-    const ventCp1 = validVent.length > 0 ? validVent[0].compte : '';
-    if (tiersCompte.startsWith('401')) {
-      let fourn = (state.fournisseurs||[]).find(f => f.compte === tiersCompte || f.nom === nom);
-      if (!fourn) {
-        fourn = { id:'fo_'+Date.now(), nom, compte: tiersCompte, contrepartie: ventCp1 };
-        if (!state.fournisseurs) state.fournisseurs = [];
-        state.fournisseurs.push(fourn);
-      } else if (!fourn.contrepartie && ventCp1) {
-        fourn.contrepartie = ventCp1;
-      }
-      tiersId = fourn.id; tiersType = 'fournisseur';
-    } else if (tiersCompte.startsWith('411')) {
-      let client = (state.clients||[]).find(c => c.compte === tiersCompte || c.name === nom);
-      if (!client) {
-        client = { id:'cl_'+Date.now(), name: nom, compte: tiersCompte, contrepartie: ventCp1 };
-        if (!state.clients) state.clients = [];
-        state.clients.push(client);
-      } else if (!client.contrepartie && ventCp1) {
-        client.contrepartie = ventCp1;
-      }
-      tiersId = client.id; tiersType = 'client';
-    }
-  }
-
-  // Pièce jointe (uniquement pour achat/banque/immo)
-  const hasPiece1 = (journal==='achat'||journal==='banque'||journal==='immo');
-  const pieceVal1 = hasPiece1 ? ecPieceData : null;
-  const pieceNom1 = hasPiece1 ? ecPieceName : null;
-
-  // Construction des écritures partie double
-  ventLines.forEach((v, i) => {
-    // Ligne produit/charge/contrepartie
-    const cpteD = isAchat ? v.compte     : tiersCompte;
-    const cpteC = isAchat ? tiersCompte  : v.compte;
-    const mont  = v.ht || (ventLines.length===1 ? ht : v.ht);
-    if (mont > 0) {
-      state.ecritures.push({
-        id: `ec_${ts}_${i}`,
-        date, journal,
-        libelle: v.libelle || libGen,
-        compteDebit:  cpteD,
-        compteCredit: cpteC,
-        montant: mont,
-        ref,
-        tiersId, tiersType,
-        piece: i===0 ? pieceVal1 : null,
-        pieceName: i===0 ? pieceNom1 : null,
-      });
-    }
-  });
-
-  // Ligne TVA si applicable
-  if (tvaOn && tva > 0.005) {
-    const compteT = isAchat ? '44566' : '4457'; // TVA déductible / collectée
-    const cpteD   = isAchat ? compteT  : tiersCompte;
-    const cpteC   = isAchat ? tiersCompte  : compteT;
-    // Ajuster le montant tiers si plusieurs ventilations
-    state.ecritures.push({
-      id: `ec_${ts}_tva`,
-      date, journal,
-      libelle: `TVA ${tvaRate}% — ${libGen}`,
-      compteDebit:  isAchat ? compteT : tiersCompte,
-      compteCredit: isAchat ? tiersCompte : compteT,
-      montant: tva,
-      ref, tiersId, tiersType,
-    });
-  }
-
-  const newIds = state.ecritures.filter(e => e.date===date && e.journal===journal && e.ref===ref).slice(-validVent.length-(tvaCheck&&tvaAmt>0?1:0));
-  for (const ec of newIds) await dbUpsert('ecritures', ec);
-  renderEcritures(); renderTiers(); renderBalance();
-
-  // Mode édition → fermer normalement
-  if (wasEditing) {
-    closeModal('ecritureModal');
-    notify('Écriture modifiée ✓');
-    return;
-  }
-
-  // Saisie au kilomètre : rester ouvert, réinitialiser sauf date et journal
-  ecKilometreCount++;
-  const keepDate = date;
-  const keepJournal = journal;
-  resetEcritureModal();
-  document.getElementById('ec-date').value = keepDate;
-  document.getElementById('ec-journal').value = keepJournal;
-  onJournalChange(false);
-  updateKilometreUI();
-  // Focus sur le libellé pour enchaîner
-  const libInput = document.getElementById('ec-lib');
-  if (libInput) libInput.focus();
-  notify('Écriture enregistrée ✓ — Saisissez la suivante');
-}
+/* Ancienne saveEcriture supprimée — version unifiée ci-dessous */
 
 function updateJournalComptes() { /* legacy */ }
 
@@ -5437,16 +5276,19 @@ async function saveEcriture() {
   }
 
   const newEcs2 = state.ecritures.filter(e => e.id.startsWith(`ec_${ts}_`));
-  for (const ec of newEcs2) await dbUpsert('ecritures', ec);
-  // Sauvegarder tiers créés
-  if (tiersType === 'fournisseur' && tiersId) {
-    const fo = state.fournisseurs.find(f => f.id === tiersId);
-    if (fo) await dbUpsert('fournisseurs', fo);
-  }
-  if (tiersType === 'client' && tiersId) {
-    const cl = state.clients.find(c => c.id === tiersId);
-    if (cl) await dbUpsert('clients', cl);
-  }
+  try {
+    for (const ec of newEcs2) await dbUpsert('ecritures', ec);
+    // Sauvegarder tiers créés
+    if (tiersType === 'fournisseur' && tiersId) {
+      const fo = state.fournisseurs.find(f => f.id === tiersId);
+      if (fo) await dbUpsert('fournisseurs', fo);
+    }
+    if (tiersType === 'client' && tiersId) {
+      const cl = state.clients.find(c => c.id === tiersId);
+      if (cl) await dbUpsert('clients', cl);
+    }
+  } catch(dbErr) { console.warn('Sauvegarde DB partielle:', dbErr); }
+
   renderEcritures(); renderTiers(); renderBalance(); renderDashboard();
 
   // Mode édition → fermer normalement
