@@ -4727,15 +4727,40 @@ const EC_PRESETS = {
 
 // ============ MODAL ÉCRITURE — logique tiers-first ============
 
-// Preset contrepartie par type de journal
-const CONTREPARTIE_PRESETS = {
-  vente:  [{ compte:'706', libelle:'Loyers / prestations' }],
-  achat:  [{ compte:'606', libelle:'Charges diverses' }],
-  banque: [{ compte:'512', libelle:'Banque' }],
-  od:     [{ compte:'', libelle:'' }],
-  an:     [{ compte:'', libelle:'Report à nouveau' }],
-  immo:   [{ compte:'213', libelle:'Immeuble' }],
+// Contrepartie et tiers par défaut selon type de société
+const DEFAULTS_PAR_TYPE = {
+  sci: {
+    contrepartie: { vente:'706', venteLib:'Loyers / prestations', achat:'606', achatLib:'Charges diverses', immo:'213', immoLib:'Immeuble' },
+    tiers: { vente:'411', achat:'401' },
+  },
+  commerciale: {
+    contrepartie: { vente:'707', venteLib:'Ventes de marchandises', achat:'607', achatLib:'Achats de marchandises', immo:'213', immoLib:'Immeuble' },
+    tiers: { vente:'411', achat:'401' },
+  },
+  association: {
+    contrepartie: { vente:'756000', venteLib:'Cotisations adhérents', achat:'606', achatLib:'Charges diverses', immo:'213', immoLib:'Immeuble' },
+    tiers: { vente:'411', achat:'401' },
+  },
 };
+
+function getContrepartiePreset(journal) {
+  const t = getTypeSocieteDossier();
+  const d = DEFAULTS_PAR_TYPE[t] || DEFAULTS_PAR_TYPE.sci;
+  if (journal === 'vente')  return [{ compte:d.contrepartie.vente, libelle:d.contrepartie.venteLib }];
+  if (journal === 'achat')  return [{ compte:d.contrepartie.achat, libelle:d.contrepartie.achatLib }];
+  if (journal === 'banque') return [{ compte:'512', libelle:'Banque' }];
+  if (journal === 'immo')   return [{ compte:d.contrepartie.immo, libelle:d.contrepartie.immoLib }];
+  if (journal === 'an')     return [{ compte:'', libelle:'Report à nouveau' }];
+  return [{ compte:'', libelle:'' }];
+}
+
+function getDefaultTiersCompte(journal) {
+  const t = getTypeSocieteDossier();
+  const d = DEFAULTS_PAR_TYPE[t] || DEFAULTS_PAR_TYPE.sci;
+  if (journal === 'achat' || journal === 'immo') return '401';
+  if (journal === 'banque') return '512';
+  return d.tiers.vente; // 411 pour tous
+}
 
 // Ventilation lines (contrepartie HT + éventuellement supplémentaires)
 let ecVentilation = []; // [{id, compte, libelle, ht}]
@@ -4756,8 +4781,8 @@ function onJournalChange(keepVentilation) {
   const tiersSel = document.getElementById('ec-tiers-select')?.value || '';
   const tiersCompteInput = document.getElementById('ec-tiers-compte');
   if (tiersCompteInput && !tiersSel) {
-    // Aucun tiers sélectionné → compte par défaut selon journal
-    tiersCompteInput.value = (j==='achat'||j==='immo') ? '401' : (j==='banque'?'512':'411');
+    // Aucun tiers sélectionné → compte par défaut selon journal et type société
+    tiersCompteInput.value = getDefaultTiersCompte(j);
     updateTiersCompteLib();
   }
 
@@ -4765,8 +4790,8 @@ function onJournalChange(keepVentilation) {
     // TVA cochée par défaut selon journal
     const tvaCheck = document.getElementById('ec-tva-check');
     if (tvaCheck) tvaCheck.checked = false; // SCI non soumise à la TVA
-    // Ventilation preset
-    const preset = CONTREPARTIE_PRESETS[j] || [{ compte:'', libelle:'' }];
+    // Ventilation preset selon type de société
+    const preset = getContrepartiePreset(j);
     ecVentilation = preset.map((p,i) => ({ id:'v'+i, compte:p.compte, libelle:p.libelle, ht:0 }));
     renderVentilation();
     // Reset tiers select aussi
@@ -4826,7 +4851,7 @@ function onTiersInput() {
   if (!val) {
     // Vide : remettre compte par défaut selon journal
     const j = document.getElementById('ec-journal')?.value || 'vente';
-    if (tiersCompte) tiersCompte.value = (j==='achat'||j==='immo') ? '401' : (j==='banque'?'512':'411');
+    if (tiersCompte) tiersCompte.value = getDefaultTiersCompte(j);
     if (tiersHint) tiersHint.textContent = '';
     updateTiersCompteLib();
     return;
@@ -6308,8 +6333,8 @@ function resetEcritureModal() {
   const tm = document.getElementById('ec-tiers-montant');
   if (tm) tm.value = '';
   const tc = document.getElementById('ec-tiers-compte');
-  // Compte tiers selon journal courant
-  if (tc) tc.value = (j==='achat'||j==='immo') ? '401' : (j==='banque'?'512':'411');
+  // Compte tiers selon journal courant et type de société
+  if (tc) tc.value = getDefaultTiersCompte(j);
   const ts = document.getElementById('ec-tiers-select');
   if (ts) ts.value = '';
   const th = document.getElementById('ec-tiers-hint');
@@ -6319,7 +6344,7 @@ function resetEcritureModal() {
   const tv = document.getElementById('ec-tva-check');
   if (tv) tv.checked = false; // SCI non soumise à la TVA
 
-  const preset = CONTREPARTIE_PRESETS[j] || [{ compte:'', libelle:'' }];
+  const preset = getContrepartiePreset(j);
   ecVentilation = preset.map((p,i) => ({ id:'v'+i, compte:p.compte, libelle:p.libelle, ht:0 }));
   ecGroupId = null;
   ecPieceData = null;
