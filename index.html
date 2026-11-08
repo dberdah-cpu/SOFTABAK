@@ -1525,6 +1525,8 @@ const PLAN_COMPTABLE = [
   { code:'455001', lib:'Associé — Compte courant' },
   { code:'462', lib:'Créances sur cessions d\'immobilisations' },
   { code:'467', lib:'Autres comptes débiteurs ou créditeurs' },
+  { code:'471', lib:'Compte d\'attente' },
+  { code:'471000', lib:'Compte d\'attente' },
   { code:'486', lib:'Charges constatées d\'avance' },
   { code:'487', lib:'Produits constatés d\'avance' },
   // Classe 5 — Financiers
@@ -8043,67 +8045,163 @@ function previewCsvImport() {
     table.innerHTML = '<div style="padding:20px;text-align:center;color:#9ca3af;font-size:12px">Aucune opération à importer' +
       (skipped ? ` (${skipped} doublon(s) ignoré(s))` : '') + '</div>';
   } else {
+    // Pré-calculer le lettrage pour chaque ligne
+    const previewMatches = csvPreviewData.map(d => csvMatchContrepartie(d));
     table.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px">
       <thead><tr style="background:#f9fafb">
         <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #e5e7eb">Date</th>
         <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #e5e7eb">Libellé</th>
         <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #e5e7eb">Montant</th>
-        <th style="padding:6px 8px;text-align:center;border-bottom:1px solid #e5e7eb">Sens</th>
+        <th style="padding:6px 8px;text-align:center;border-bottom:1px solid #e5e7eb">Compte</th>
       </tr></thead>
-      <tbody>${csvPreviewData.map((d,i) => `<tr style="border-bottom:1px solid #f3f4f6">
+      <tbody>${csvPreviewData.map((d,i) => {
+        const m = previewMatches[i];
+        const cpteLabel = m.compte + (m.matched ? '' : ' ⏳');
+        const cpteColor = m.matched ? '#059669' : '#f59e0b';
+        const cpteTitle = m.matched ? pcLib(m.compte) : 'Compte d\'attente — à reclasser';
+        return `<tr style="border-bottom:1px solid #f3f4f6${!m.matched?';background:#fffbeb':''}">
         <td style="padding:5px 8px;white-space:nowrap;color:#6b7280">${fmtDate(d.date)}</td>
-        <td style="padding:5px 8px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.libelle}">${d.libelle}</td>
+        <td style="padding:5px 8px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.libelle}">${d.libelle}</td>
         <td style="padding:5px 8px;text-align:right;font-weight:500;color:${d.sens==='credit'?'#059669':'#dc2626'}">${d.sens==='credit'?'+':'−'}${fmt(d.montant)} €</td>
-        <td style="padding:5px 8px;text-align:center">${d.sens==='credit'?'⬆️':'⬇️'}</td>
-      </tr>`).join('')}</tbody>
+        <td style="padding:5px 8px;text-align:center"><span style="background:${cpteColor}15;color:${cpteColor};font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px" title="${cpteTitle}">${cpteLabel}</span></td>
+      </tr>`}).join('')}</tbody>
     </table>`;
+    // Compteurs lettrage
+    const matchedCount = previewMatches.filter(m=>m.matched).length;
+    const attenteCount = previewMatches.filter(m=>!m.matched).length;
   }
 
   document.getElementById('csv-preview-count').textContent = `${csvPreviewData.length} opération(s)`;
   let summary = '';
   const totalCredit = csvPreviewData.filter(d=>d.sens==='credit').reduce((s,d)=>s+d.montant,0);
   const totalDebit = csvPreviewData.filter(d=>d.sens==='debit').reduce((s,d)=>s+d.montant,0);
-  summary = `⬆️ Encaissements : +${fmt(totalCredit)} € · ⬇️ Décaissements : −${fmt(totalDebit)} €`;
+  summary = `⬆️ +${fmt(totalCredit)} € · ⬇️ −${fmt(totalDebit)} €`;
+  if (matchedCount) summary += ` · ✅ ${matchedCount} lettrée(s)`;
+  if (attenteCount) summary += ` · ⏳ ${attenteCount} en attente (471)`;
   if (skipped) summary += ` · ${skipped} doublon(s) ignoré(s)`;
-  if (errors) summary += ` · ${errors} ligne(s) ignorée(s) (erreur)`;
+  if (errors) summary += ` · ${errors} ligne(s) ignorée(s)`;
   document.getElementById('csv-preview-summary').textContent = summary;
 
   document.getElementById('csv-step-mapping').style.display = 'none';
   document.getElementById('csv-step-preview').style.display = 'block';
 }
 
+// Lettrage automatique : chercher une correspondance facture/client/fournisseur
+function csvMatchContrepartie(row) {
+  const lib = (row.libelle||'').toLowerCase();
+  const montant = row.montant;
+  const sens = row.sens;
+
+  // 1. Chercher par numéro de facture dans le libellé
+  const invoices = dossierInvoices()||[];
+  for (const inv of invoices) {
+    if (!inv.number) continue;
+    if (lib.includes(inv.number.toLowerCase())) {
+      // Facture trouvée → compte client 411
+      return { compte: inv.compte || '411', libelle: `Règl. ${inv.number}`, invoiceId: inv.id, matched: true };
+    }
+  }
+  const factFourn = (state.factures_fourn||[]).filter(f => f.dossierId === currentDossier?.id);
+  for (const ff of factFourn) {
+    if (!ff.numero) continue;
+    if (lib.includes(ff.numero.toLowerCase())) {
+      return { compte: ff.compte || '401', libelle: `Règl. fourn. ${ff.numero}`, matched: true };
+    }
+  }
+
+  // 2. Chercher par nom de client/fournisseur dans le libellé
+  for (const cl of (state.clients||[])) {
+    const nom = (cl.name||cl.nom||'').toLowerCase();
+    if (nom.length > 2 && lib.includes(nom)) {
+      return { compte: cl.compte || '411', libelle: row.libelle, matched: true };
+    }
+  }
+  for (const fo of (state.fournisseurs||[])) {
+    const nom = (fo.nom||'').toLowerCase();
+    if (nom.length > 2 && lib.includes(nom)) {
+      return { compte: fo.compte || '401', libelle: row.libelle, matched: true };
+    }
+  }
+
+  // 3. Mots-clés courants dans les libellés bancaires
+  if (/loyer|bail|fermage/i.test(lib) && sens==='credit') {
+    return { compte: '706', libelle: row.libelle, matched: true };
+  }
+  if (/salaire|paie|remuneration/i.test(lib) && sens==='debit') {
+    return { compte: '421', libelle: row.libelle, matched: true };
+  }
+  if (/urssaf|cotisation sociale|charges sociales/i.test(lib) && sens==='debit') {
+    return { compte: '431', libelle: row.libelle, matched: true };
+  }
+  if (/imp[oô]t|taxe fonci|cfe|cvae|is /i.test(lib) && sens==='debit') {
+    return { compte: '635', libelle: row.libelle, matched: true };
+  }
+  if (/assurance/i.test(lib) && sens==='debit') {
+    return { compte: '616', libelle: row.libelle, matched: true };
+  }
+  if (/edf|engie|gaz|[ée]lectricit|eau/i.test(lib) && sens==='debit') {
+    return { compte: '606100', libelle: row.libelle, matched: true };
+  }
+  if (/t[ée]l[ée]phone|internet|orange|sfr|bouygues|free mobile/i.test(lib) && sens==='debit') {
+    return { compte: '626', libelle: row.libelle, matched: true };
+  }
+  if (/cotisation|adh[ée]sion/i.test(lib) && sens==='credit') {
+    return { compte: '756000', libelle: row.libelle, matched: true };
+  }
+  if (/don|donation|m[ée]c[ée]nat/i.test(lib) && sens==='credit') {
+    return { compte: '740', libelle: row.libelle, matched: true };
+  }
+  if (/subvention/i.test(lib) && sens==='credit') {
+    return { compte: '741', libelle: row.libelle, matched: true };
+  }
+
+  // 4. Pas de correspondance → compte d'attente 471
+  return { compte: '471', libelle: row.libelle, matched: false };
+}
+
 async function executeCsvImport() {
   if (!csvPreviewData.length) { notify('Aucune opération à importer', true); return; }
 
-  const t = getTypeSocieteDossier();
-  const d = DEFAULTS_PAR_TYPE[t] || DEFAULTS_PAR_TYPE.sci;
   const ts = Date.now();
   const promises = [];
-  let count = 0;
+  let count = 0, matched = 0, attente = 0;
 
   for (let i = 0; i < csvPreviewData.length; i++) {
     const row = csvPreviewData[i];
-    // Pour un encaissement (crédit) : Débit 512 / Crédit contrepartie (411 ou 756000 etc.)
-    // Pour un décaissement (débit) : Débit contrepartie (606 etc.) / Crédit 512
+    const match = csvMatchContrepartie(row);
+
     let cpteD, cpteC;
     if (row.sens === 'credit') {
       cpteD = '512';
-      cpteC = d.contrepartie.banque || '411';
+      cpteC = match.compte;
     } else {
-      cpteD = d.contrepartie.achat || '606';
+      cpteD = match.compte;
       cpteC = '512';
     }
+
+    if (match.matched) matched++; else attente++;
 
     const ec = {
       id: `csv_${ts}_${i}`,
       date: row.date,
       journal: 'banque',
-      libelle: row.libelle,
+      libelle: match.libelle || row.libelle,
       compteDebit: cpteD,
       compteCredit: cpteC,
       montant: row.montant,
       ref: 'CSV',
     };
+
+    // Si facture matchée, marquer comme réglée
+    if (match.invoiceId) {
+      ec.invoiceId = match.invoiceId;
+      const fi = state.invoices.findIndex(inv => inv.id === match.invoiceId);
+      if (fi > -1) {
+        state.invoices[fi].status = 'paid';
+        promises.push(dbUpsert('invoices', state.invoices[fi]));
+      }
+    }
+
     state.ecritures.push(ec);
     promises.push(dbUpsert('ecritures', ec));
     count++;
@@ -8128,7 +8226,10 @@ async function executeCsvImport() {
   await Promise.all(promises);
   closeModal('csvImportModal');
   renderEcritures(); renderBanques(); renderReglements(); renderBalance();
-  notify(`${count} opération(s) importée(s) ✓`);
+  let msg = `${count} opération(s) importée(s) ✓`;
+  if (matched) msg += ` — ${matched} lettrée(s)`;
+  if (attente) msg += ` — ${attente} en compte d'attente (471)`;
+  notify(msg);
 }
 
 // Init compta au chargement
