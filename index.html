@@ -4768,12 +4768,33 @@ function getDefaultTiersCompte(journal) {
 // Ventilation lines (contrepartie HT + éventuellement supplémentaires)
 let ecVentilation = []; // [{id, compte, libelle, ht}]
 
+let ecKilometreCount = 0;
+
 function openJournal(journal) {
   // Fixer le journal AVANT le reset pour que resetEcritureModal lise le bon compte tiers
   const sel = document.getElementById('ec-journal');
   if (sel && journal) sel.value = journal;
   resetEcritureModal();
+  ecKilometreCount = 0;
+  updateKilometreUI();
   openModal('ecritureModal');
+}
+
+function updateKilometreUI() {
+  const bar = document.getElementById('ec-kilometre-bar');
+  const msg = document.getElementById('ec-kilometre-msg');
+  const btnTerm = document.getElementById('ec-btn-terminer');
+  const btnAnnul = document.getElementById('ec-btn-annuler');
+  if (ecKilometreCount > 0) {
+    bar.style.display = 'flex';
+    msg.textContent = `${ecKilometreCount} écriture(s) saisie(s)`;
+    btnTerm.style.display = '';
+    btnAnnul.style.display = 'none';
+  } else {
+    bar.style.display = 'none';
+    btnTerm.style.display = 'none';
+    btnAnnul.style.display = '';
+  }
 }
 
 function onJournalChange(keepVentilation) {
@@ -5066,6 +5087,7 @@ async function saveEcriture() {
   }
 
   // Supprimer si édition
+  const wasEditing = !!ecGroupId;
   if (ecGroupId) {
     const old = state.ecritures.find(x=>x.id===ecGroupId);
     if (old) {
@@ -5168,8 +5190,27 @@ async function saveEcriture() {
   const newIds = state.ecritures.filter(e => e.date===date && e.journal===journal && e.ref===ref).slice(-validVent.length-(tvaCheck&&tvaAmt>0?1:0));
   for (const ec of newIds) await dbUpsert('ecritures', ec);
   renderEcritures(); renderTiers(); renderBalance();
-  closeModal('ecritureModal');
-  notify('Écriture enregistrée ✓');
+
+  // Mode édition → fermer normalement
+  if (wasEditing) {
+    closeModal('ecritureModal');
+    notify('Écriture modifiée ✓');
+    return;
+  }
+
+  // Saisie au kilomètre : rester ouvert, réinitialiser sauf date et journal
+  ecKilometreCount++;
+  const keepDate = date;
+  const keepJournal = journal;
+  resetEcritureModal();
+  document.getElementById('ec-date').value = keepDate;
+  document.getElementById('ec-journal').value = keepJournal;
+  onJournalChange(false);
+  updateKilometreUI();
+  // Focus sur le libellé pour enchaîner
+  const libInput = document.getElementById('ec-lib');
+  if (libInput) libInput.focus();
+  notify('Écriture enregistrée ✓ — Saisissez la suivante');
 }
 
 function updateJournalComptes() { /* legacy */ }
@@ -5307,6 +5348,7 @@ async function saveEcriture() {
   }
 
   // Supprimer anciennes si édition
+  const wasEditing2 = !!ecGroupId;
   if (ecGroupId) {
     const old = state.ecritures.find(x=>x.id===ecGroupId);
     if (old) {
@@ -5406,8 +5448,26 @@ async function saveEcriture() {
     if (cl) await dbUpsert('clients', cl);
   }
   renderEcritures(); renderTiers(); renderBalance(); renderDashboard();
-  closeModal('ecritureModal');
-  notify('Écriture enregistrée ✓');
+
+  // Mode édition → fermer normalement
+  if (wasEditing2) {
+    closeModal('ecritureModal');
+    notify('Écriture modifiée ✓');
+    return;
+  }
+
+  // Saisie au kilomètre : rester ouvert, réinitialiser sauf date et journal
+  ecKilometreCount++;
+  const keepDate2 = date;
+  const keepJournal2 = journal;
+  resetEcritureModal();
+  document.getElementById('ec-date').value = keepDate2;
+  document.getElementById('ec-journal').value = keepJournal2;
+  onJournalChange(false);
+  updateKilometreUI();
+  const libInput2 = document.getElementById('ec-lib');
+  if (libInput2) libInput2.focus();
+  notify('Écriture enregistrée ✓ — Saisissez la suivante');
 }
 
 function updateJournalComptes() { /* legacy — remplacé par onJournalChange */ }
@@ -6678,9 +6738,14 @@ function generateFEC() {
 
     <datalist id="pc-list"></datalist>
 
+    <div id="ec-kilometre-bar" style="display:none;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:8px 12px;margin-bottom:10px;display:none;align-items:center;gap:8px">
+      <span style="font-size:20px">✅</span>
+      <span style="font-size:12px;color:#065f46;font-weight:600" id="ec-kilometre-msg">0 écriture(s) saisie(s)</span>
+    </div>
     <div class="action-row">
-      <button class="btn btn-gold" style="flex:1" onclick="saveEcriture()">Enregistrer l'écriture</button>
-      <button class="btn btn-outline" onclick="closeModal('ecritureModal')">Annuler</button>
+      <button class="btn btn-gold" style="flex:1" onclick="saveEcriture()">Enregistrer</button>
+      <button class="btn btn-outline" id="ec-btn-terminer" onclick="closeModal('ecritureModal')" style="display:none;background:#059669;color:#fff;border-color:#059669">✓ Terminer</button>
+      <button class="btn btn-outline" id="ec-btn-annuler" onclick="closeModal('ecritureModal')">Annuler</button>
     </div>
   </div>
 </div>
