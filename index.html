@@ -1073,6 +1073,7 @@
       <button class="cp-filter-btn"        id="filt-od"     onclick="filterEcritures('od')">OD</button>
       <button class="cp-filter-btn"        id="filt-an"     onclick="filterEcritures('an')">AN</button>
       <button class="cp-add-btn" onclick="openJournal(currentEcritureFilter==='all'?'achat':currentEcritureFilter)">+ Saisir</button>
+      <button class="cp-add-btn" id="btn-recette-globale" onclick="openRecetteGlobale()" style="background:#7c3aed;display:none" title="Saisir les recettes par période">🎁 Recettes</button>
       <button class="cp-add-btn" onclick="openExportFEC()" style="background:#059669;margin-left:4px" title="Export FEC pour l'expert-comptable">📤 FEC</button>
       <button class="cp-add-btn" onclick="exportJournalPDF()" style="background:#7c3aed;margin-left:4px" title="Export Journal PDF">📄</button>
       <button class="cp-add-btn" onclick="exportJournalExcel()" style="background:#047857;margin-left:4px" title="Export Journal Excel">📊</button>
@@ -2154,6 +2155,7 @@ function renderAll() {
   renderFacturesFourn();
   updateStats();
   initContrepartieSelects();
+  updateRecetteGlobaleBtn();
 }
 
 // ============ FILTERED DATA HELPERS ============
@@ -4512,7 +4514,7 @@ function showComptaTab(tab) {
   });
   if (tab==='clients')      renderTiers();
   if (tab==='fournisseurs') { renderFournisseurs(); renderFacturesFourn(); }
-  if (tab==='ecritures')    renderEcritures();
+  if (tab==='ecritures')    { renderEcritures(); updateRecetteGlobaleBtn(); }
   if (tab==='balance')      renderBalance();
   if (tab==='grandlivre')   renderGrandLivreSelect();
   if (tab==='banque')       { renderBanques(); renderReglements(); }
@@ -6464,6 +6466,54 @@ function generateFEC() {
 
 <!-- MODALS COMPTABILITÉ -->
 
+<!-- Modal Recette Globale (associations) -->
+<div class="modal-overlay" id="recetteGlobaleModal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <h2 style="font-size:16px;font-weight:700;color:#111827;margin:0">🎁 Recette globale par période</h2>
+      <button class="modal-close" onclick="closeModal('recetteGlobaleModal')">✕</button>
+    </div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;gap:8px">
+        <div style="flex:1">
+          <label style="font-size:11px;color:#6b7280;font-weight:600;display:block;margin-bottom:4px">Mois</label>
+          <select id="rg-mois" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
+            <option value="01">Janvier</option><option value="02">Février</option><option value="03">Mars</option>
+            <option value="04">Avril</option><option value="05">Mai</option><option value="06">Juin</option>
+            <option value="07">Juillet</option><option value="08">Août</option><option value="09">Septembre</option>
+            <option value="10">Octobre</option><option value="11">Novembre</option><option value="12">Décembre</option>
+          </select>
+        </div>
+        <div style="width:90px">
+          <label style="font-size:11px;color:#6b7280;font-weight:600;display:block;margin-bottom:4px">Année</label>
+          <input id="rg-annee" type="number" min="2020" max="2040" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;text-align:center">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:11px;color:#6b7280;font-weight:600;display:block;margin-bottom:4px">Montant total des dons</label>
+        <input id="rg-montant" type="number" step="0.01" min="0" placeholder="0.00" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;font-weight:700;text-align:right">
+      </div>
+      <div>
+        <label style="font-size:11px;color:#6b7280;font-weight:600;display:block;margin-bottom:4px">Libellé (optionnel)</label>
+        <input id="rg-libelle" type="text" placeholder="Dons" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
+      </div>
+      <div>
+        <label style="font-size:11px;color:#6b7280;font-weight:600;display:block;margin-bottom:4px">Compte bancaire</label>
+        <select id="rg-banque" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px"></select>
+      </div>
+      <div id="rg-kilometre-bar" style="display:none;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:8px 12px;align-items:center;gap:8px">
+        <span style="font-size:20px">✅</span>
+        <span style="font-size:12px;color:#065f46;font-weight:600" id="rg-kilometre-msg">0 recette(s) saisie(s)</span>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-gold" style="flex:1" onclick="saveRecetteGlobale()">Enregistrer</button>
+        <button class="btn btn-outline" id="rg-btn-terminer" onclick="closeModal('recetteGlobaleModal')" style="display:none;background:#059669;color:#fff;border-color:#059669">✓ Terminer</button>
+        <button class="btn btn-outline" id="rg-btn-annuler" onclick="closeModal('recetteGlobaleModal')">Annuler</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Écriture — saisie journal -->
 <div class="modal-overlay" id="ecritureModal">
   <div class="modal" style="max-width:500px">
@@ -7705,6 +7755,115 @@ const CSV_BANK_PROFILES = [
   { name:'Générique (;)',     sep:';', dateCol:/date/i,        libCol:/lib|desc|label/i,amtCol:/mont|amount|sum/i, debitCol:/deb/i, creditCol:/cre/i, dateFormat:'dd/mm/yyyy' },
   { name:'Générique (,)',     sep:',', dateCol:/date/i,        libCol:/lib|desc|label/i,amtCol:/mont|amount|sum/i, debitCol:/deb/i, creditCol:/cre/i, dateFormat:'dd/mm/yyyy' },
 ];
+
+// ============ RECETTE GLOBALE (ASSOCIATIONS) ============
+let rgKilometreCount = 0;
+
+function openRecetteGlobale() {
+  if (!state.banques.length) {
+    notify('Créez d\'abord un compte bancaire', true); return;
+  }
+  rgKilometreCount = 0;
+  // Pré-remplir mois/année courants
+  const now = new Date();
+  document.getElementById('rg-mois').value = String(now.getMonth()+1).padStart(2,'0');
+  document.getElementById('rg-annee').value = now.getFullYear();
+  document.getElementById('rg-montant').value = '';
+  document.getElementById('rg-libelle').value = '';
+  // Remplir sélecteur banque
+  const sel = document.getElementById('rg-banque');
+  sel.innerHTML = state.banques.map(b => `<option value="${b.id}">${b.nom} (${b.compte||'512'})</option>`).join('');
+  // Reset UI kilomètre
+  document.getElementById('rg-kilometre-bar').style.display = 'none';
+  document.getElementById('rg-btn-terminer').style.display = 'none';
+  document.getElementById('rg-btn-annuler').style.display = 'inline-block';
+  openModal('recetteGlobaleModal');
+}
+
+async function saveRecetteGlobale() {
+  const mois = document.getElementById('rg-mois').value;
+  const annee = document.getElementById('rg-annee').value;
+  const montant = parseFloat(document.getElementById('rg-montant').value) || 0;
+  const libCustom = document.getElementById('rg-libelle').value.trim();
+  const banqueId = document.getElementById('rg-banque').value;
+
+  if (!montant || montant <= 0) { notify('Saisissez un montant', true); return; }
+  if (!annee) { notify('Saisissez l\'année', true); return; }
+
+  const MOIS_NOMS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const moisNom = MOIS_NOMS[parseInt(mois)-1];
+  const libelle = libCustom || `Dons ${moisNom} ${annee}`;
+
+  // Date = dernier jour du mois
+  const lastDay = new Date(annee, parseInt(mois), 0).getDate();
+  const date = `${annee}-${mois}-${String(lastDay).padStart(2,'0')}`;
+
+  // Comptes
+  const banque = state.banques.find(b => b.id === banqueId);
+  const compteBanque = banque?.compte || '512';
+  const t = getTypeSocieteDossier();
+  const d = DEFAULTS_PAR_TYPE[t] || DEFAULTS_PAR_TYPE.association;
+  const compteDon = d.contrepartie.vente || '754';
+
+  const ts = Date.now();
+  const ref = `RG-${annee}${mois}`;
+
+  // Écriture double : 512 D / 754 C
+  state.ecritures.push({
+    id: `ec_${ts}_0`,
+    date, journal: 'banque',
+    libelle,
+    compteDebit: compteBanque,
+    compteCredit: compteDon,
+    montant,
+    ref,
+  });
+
+  // Règlement associé
+  state.reglements.push({
+    id: `rg_${ts}`,
+    date,
+    banqueId,
+    libelle,
+    montant,
+    sens: 'credit',
+  });
+
+  try {
+    const ec = state.ecritures.find(e => e.id === `ec_${ts}_0`);
+    if (ec) await dbUpsert('ecritures', ec);
+    const rg = state.reglements.find(r => r.id === `rg_${ts}`);
+    if (rg) await dbUpsert('reglements', rg);
+  } catch(err) { console.warn('DB partielle recette globale:', err); }
+
+  renderEcritures(); renderBalance(); renderBanques(); renderReglements(); renderDashboard();
+
+  // Mode kilomètre
+  rgKilometreCount++;
+  document.getElementById('rg-montant').value = '';
+  document.getElementById('rg-libelle').value = '';
+  // Avancer au mois suivant
+  let m = parseInt(mois);
+  let a = parseInt(annee);
+  if (m < 12) { m++; } else { m = 1; a++; }
+  document.getElementById('rg-mois').value = String(m).padStart(2,'0');
+  document.getElementById('rg-annee').value = a;
+
+  document.getElementById('rg-kilometre-bar').style.display = 'flex';
+  document.getElementById('rg-kilometre-msg').textContent = `${rgKilometreCount} recette(s) saisie(s)`;
+  document.getElementById('rg-btn-terminer').style.display = 'inline-block';
+  document.getElementById('rg-btn-annuler').style.display = 'none';
+  document.getElementById('rg-montant').focus();
+  notify(`${libelle} — ${fmt(montant)} € ✓`);
+}
+
+// Afficher/masquer le bouton Recettes selon le type de société
+function updateRecetteGlobaleBtn() {
+  const btn = document.getElementById('btn-recette-globale');
+  if (!btn) return;
+  const t = getTypeSocieteDossier();
+  btn.style.display = (t === 'association') ? 'inline-block' : 'none';
+}
 
 function openCsvImport() {
   if (!state.banques.length) {
