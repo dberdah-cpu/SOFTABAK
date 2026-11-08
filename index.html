@@ -169,6 +169,11 @@
     display:flex;align-items:center;justify-content:center;line-height:1;
   }
 
+  /* TYPE SOCIÉTÉ RADIO */
+  .type-societe-option:has(input:checked) {
+    border-color:#1a56db;background:#eff6ff;font-weight:600;
+  }
+
   /* AUTOCOMPLETION PLAN COMPTABLE */
   .pc-ac-wrap { position:relative; }
   .pc-ac-dropdown {
@@ -198,6 +203,12 @@
     padding:5px 10px;font-size:10px;font-weight:700;color:#6b7280;
     text-transform:uppercase;letter-spacing:.5px;background:#f9fafb;
     border-bottom:1px solid #e5e7eb;position:sticky;top:0;
+  }
+  .pc-ac-fav { font-size:10px;margin-left:2px; }
+  .pc-ac-favheader {
+    padding:5px 10px;font-size:10px;font-weight:700;color:#d97706;
+    text-transform:uppercase;letter-spacing:.5px;background:#fffbeb;
+    border-bottom:1px solid #fde68a;position:sticky;top:0;
   }
 
   /* DOSSIER SELECTION SCREEN */
@@ -1242,7 +1253,24 @@
     <div class="modal-handle"></div>
     <div class="modal-title" id="headerModalTitle">Nouvelle Société</div>
     <input type="hidden" id="header-edit-id">
-    <div class="form-group"><label class="form-label">Nom de la SCI *</label><input class="form-input" id="h-name" placeholder="SCI Mon Patrimoine"></div>
+    <div class="form-group"><label class="form-label">Nom de la société *</label><input class="form-input" id="h-name" placeholder="Ma Société"></div>
+    <div class="form-group">
+      <label class="form-label">Type de société *</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" id="h-type-societe-group">
+        <label style="flex:1;min-width:100px;display:flex;align-items:center;gap:6px;padding:10px 12px;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;transition:all .2s;background:#fff;font-size:13px;color:#374151" class="type-societe-option" data-value="commerciale">
+          <input type="radio" name="h-type-societe" value="commerciale" style="accent-color:#1a56db;width:16px;height:16px" onchange="onTypeSocieteChange()">
+          <span>🏪 Commerciale</span>
+        </label>
+        <label style="flex:1;min-width:80px;display:flex;align-items:center;gap:6px;padding:10px 12px;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;transition:all .2s;background:#fff;font-size:13px;color:#374151" class="type-societe-option" data-value="sci">
+          <input type="radio" name="h-type-societe" value="sci" style="accent-color:#1a56db;width:16px;height:16px" onchange="onTypeSocieteChange()">
+          <span>🏠 SCI</span>
+        </label>
+        <label style="flex:1;min-width:100px;display:flex;align-items:center;gap:6px;padding:10px 12px;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;transition:all .2s;background:#fff;font-size:13px;color:#374151" class="type-societe-option" data-value="association">
+          <input type="radio" name="h-type-societe" value="association" style="accent-color:#1a56db;width:16px;height:16px" onchange="onTypeSocieteChange()">
+          <span>🤝 Association</span>
+        </label>
+      </div>
+    </div>
     <div class="form-group"><label class="form-label">Forme juridique</label><input class="form-input" id="h-legal" placeholder="SCI au capital de 1 000 €"></div>
     <div class="form-group"><label class="form-label">Adresse *</label><input class="form-input" id="h-addr" placeholder="1 avenue des Propriétaires"></div>
     <div class="form-row">
@@ -1582,7 +1610,88 @@ const PLAN_COMPTABLE = [
   { code:'791400', lib:'Transferts de charges' },
   // Classe 8 — Comptes spéciaux
   { code:'890', lib:'Bilan d\'ouverture' },
+  // === Comptes supplémentaires associations ===
+  { code:'102', lib:'Fonds associatif sans droit de reprise' },
+  { code:'103', lib:'Fonds associatif avec droit de reprise' },
+  { code:'115', lib:'Résultat sous contrôle de tiers financeurs' },
+  { code:'131', lib:'Subventions d\'équipement' },
+  { code:'139', lib:'Subventions d\'investissement inscrites au CR' },
+  { code:'180', lib:'Comptes de liaison des établissements' },
+  { code:'681200', lib:'Dotations amortissements — Charges d\'exploitation' },
+  { code:'740', lib:'Subventions d\'exploitation' },
+  { code:'741', lib:'Subventions de l\'État' },
+  { code:'742', lib:'Subventions des collectivités locales' },
+  { code:'743', lib:'Subventions des organismes internationaux' },
+  { code:'748', lib:'Autres subventions d\'exploitation' },
+  { code:'754000', lib:'Cotisations des membres' },
+  { code:'756', lib:'Cotisations' },
+  { code:'756000', lib:'Cotisations des adhérents' },
+  { code:'757', lib:'Dons manuels' },
+  { code:'758100', lib:'Dons courants' },
+  { code:'860', lib:'Emplois des contributions volontaires en nature' },
+  { code:'861', lib:'Mise à disposition gratuite de biens' },
+  { code:'862', lib:'Prestations en nature' },
+  { code:'864', lib:'Personnel bénévole' },
+  { code:'870', lib:'Contributions volontaires en nature' },
+  { code:'871', lib:'Bénévolat' },
+  { code:'875', lib:'Dons en nature' },
+  // === Comptes supplémentaires commerciales ===
+  { code:'310', lib:'Stocks de matières premières' },
+  { code:'355', lib:'Stocks de produits finis' },
+  { code:'370', lib:'Stocks de marchandises' },
+  { code:'603', lib:'Variations des stocks' },
+  { code:'607', lib:'Achats de marchandises' },
+  { code:'609', lib:'Rabais, remises, ristournes obtenus sur achats' },
+  { code:'700', lib:'Ventes de produits fabriqués' },
+  { code:'704', lib:'Travaux' },
+  { code:'707', lib:'Ventes de marchandises' },
+  { code:'709', lib:'Rabais, remises, ristournes accordés' },
+  { code:'713', lib:'Variation des stocks (en-cours, produits)' },
 ];
+
+// Comptes favoris par type de société — affichés en priorité dans l'autocomplétion
+const PC_FAVORIS = {
+  sci: ['101','106','110','119','120','129','164','165','211','213','213100','213500',
+    '280','281','281310','281350','401','411','455','455001','462','467','486','487',
+    '512','530','606','606110','606120','606130','606400','613','614','614000',
+    '615','615200','615210','615310','616','616100','622','622610','622700',
+    '627','627200','635','635120','635121','635125','635710',
+    '661','661000','681','681110',
+    '706','706000','708','708300','708399','752','758','758000','775','890'],
+  commerciale: ['101','106','110','120','129','164','310','355','370',
+    '401','404','411','421','431','437','444','445','4456','4457',
+    '467','486','487','512','530',
+    '601','602','603','606','607','609','611','613','615','616',
+    '622','624','625','626','627','628','631','635','641','645',
+    '661','665','671','675','681','695',
+    '700','701','704','706','707','708','709','713','754','765','771','775','890'],
+  association: ['102','103','106','110','115','120','129','131','139',
+    '164','165','180','213','218',
+    '401','411','421','431','437','441','447','455','467','486','487',
+    '512','530',
+    '606','611','613','615','616','622','623','625','626','627','628',
+    '631','635','641','645','661','681',
+    '706','708','740','741','742','743','748','754000','756','756000','757','758','758100',
+    '860','861','862','864','870','871','875','890'],
+};
+
+function onTypeSocieteChange() {
+  const v = document.querySelector('input[name="h-type-societe"]:checked')?.value || '';
+  const legalInput = document.getElementById('h-legal');
+  const nameLabel = document.querySelector('label[for="h-name"], #headerModal .form-label');
+  const placeholders = {
+    sci: 'SCI au capital de 1 000 €',
+    commerciale: 'SARL, SAS, EURL, SA…',
+    association: 'Association loi 1901'
+  };
+  if (legalInput) legalInput.placeholder = placeholders[v] || 'Forme juridique';
+}
+
+function getTypeSocieteDossier() {
+  if (!currentDossier) return '';
+  const h = state.headers.find(x => x.id === currentDossier.id);
+  return h?.typeSociete || '';
+}
 
 function pcLib(code) {
   const c = PLAN_COMPTABLE.find(x => x.code === code);
@@ -1727,9 +1836,9 @@ function showDossierScreen() {
     const invCount = (state.invoices || []).filter(i => i.headerId === h.id).length;
     return `
       <div class="dossier-card${owner ? '' : ' shared'}" onclick="selectDossier('${h.id}')">
-        <div class="dc-icon">${h.logo ? '<img src="'+h.logo+'" style="width:36px;height:36px;object-fit:contain;border-radius:6px">' : (owner ? '🏢' : '🤝')}</div>
+        <div class="dc-icon">${h.logo ? '<img src="'+h.logo+'" style="width:36px;height:36px;object-fit:contain;border-radius:6px">' : ({'sci':'🏠','commerciale':'🏪','association':'🤝'}[h.typeSociete] || (owner ? '🏢' : '🤝'))}</div>
         <div class="dc-name">${h.name}</div>
-        <div class="dc-legal">${h.legal || ''}</div>
+        <div class="dc-legal">${h.typeSociete ? '<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;background:'+({'sci':'#dbeafe','commerciale':'#dcfce7','association':'#fef3c7'}[h.typeSociete]||'#f3f4f6')+';color:'+({'sci':'#1e40af','commerciale':'#166534','association':'#92400e'}[h.typeSociete]||'#374151')+';margin-right:4px">'+({'sci':'SCI','commerciale':'Commerciale','association':'Association'}[h.typeSociete]||'')+'</span>' : ''}${h.legal || ''}</div>
         <div class="dc-info">
           ${h.city ? '📍 ' + (h.zip || '') + ' ' + h.city : ''}
           ${h.siret ? '<br>🏛️ ' + h.siret : ''}
@@ -1849,8 +1958,8 @@ const COL_MAP = {
     toJs: { date_debut:'dateDebut', date_fin:'dateFin', date_cloture:'dateCloture' }
   },
   headers: {
-    toDb: { tva:'tva_intra', userId:'user_id' },
-    toJs: { tva_intra:'tva', user_id:'userId' }
+    toDb: { tva:'tva_intra', userId:'user_id', typeSociete:'type_societe' },
+    toJs: { tva_intra:'tva', user_id:'userId', type_societe:'typeSociete' }
   },
   settings: {
     toDb: { startNum:'start_num', paymentDays:'payment_days', ejsPubKey:'ejs_pub_key', ejsService:'ejs_service', ejsTemplate:'ejs_template' },
@@ -2266,9 +2375,13 @@ async function saveHeader() {
   const name = document.getElementById('h-name').value.trim();
   if (!name) { notify('Nom requis', true); return; }
 
+  const typeSociete = document.querySelector('input[name="h-type-societe"]:checked')?.value || '';
+  if (!typeSociete) { notify('Veuillez choisir un type de société', true); return; }
+
   const obj = {
     id: id || Date.now().toString(),
     name,
+    typeSociete,
     legal: document.getElementById('h-legal').value.trim(),
     addr: document.getElementById('h-addr').value.trim(),
     zip: document.getElementById('h-zip').value.trim(),
@@ -2312,6 +2425,10 @@ function editHeader(id) {
   document.getElementById('headerModalTitle').textContent = 'Modifier Société';
   ['name','legal','addr','zip','city','phone','email','siret','tva','iban','bic','rcs']
     .forEach(f => { document.getElementById('h-'+f).value = h[f] || ''; });
+  // Load type société
+  const typeRadio = document.querySelector(`input[name="h-type-societe"][value="${h.typeSociete||''}"]`);
+  if (typeRadio) { typeRadio.checked = true; onTypeSocieteChange(); }
+  else document.querySelectorAll('input[name="h-type-societe"]').forEach(r => r.checked = false);
   // Load logo if exists
   if (h.logo) {
     headerLogoData = h.logo;
@@ -5909,6 +6026,8 @@ function resetHeaderModal() {
   document.getElementById('header-edit-id').value='';
   document.getElementById('headerModalTitle').textContent='Nouvelle Société';
   ['name','legal','addr','zip','city','phone','email','siret','tva','iban','bic','rcs'].forEach(f=>{ document.getElementById('h-'+f).value=''; });
+  // Reset type société
+  document.querySelectorAll('input[name="h-type-societe"]').forEach(r => r.checked = false);
   // Reset logo
   headerLogoData = null;
   document.getElementById('logo-preview').style.display='none';
@@ -6892,11 +7011,26 @@ function initPCAutocomplete(input, opts={}) {
   function filterPC(query) {
     const q = (query||'').trim();
     if (!q) return [];
-    // Filtre : le code COMMENCE par la saisie, ou le libellé contient la saisie
     const ql = q.toLowerCase();
-    return PLAN_COMPTABLE.filter(c =>
+    const matched = PLAN_COMPTABLE.filter(c =>
       c.code.startsWith(q) || c.lib.toLowerCase().includes(ql)
     );
+    // Trier : favoris du type de société en premier
+    const typeSoc = getTypeSocieteDossier();
+    const favs = typeSoc ? (PC_FAVORIS[typeSoc]||[]) : [];
+    if (favs.length) {
+      const favSet = new Set(favs);
+      matched.sort((a,b) => {
+        const aFav = favSet.has(a.code);
+        const bFav = favSet.has(b.code);
+        if (aFav && !bFav) return -1;
+        if (!aFav && bFav) return 1;
+        return a.code.localeCompare(b.code);
+      });
+      // Marquer les favoris
+      matched.forEach(c => { c._fav = favSet.has(c.code); });
+    }
+    return matched;
   }
 
   function highlightMatch(text, query) {
@@ -6912,7 +7046,23 @@ function initPCAutocomplete(input, opts={}) {
 
     let html = '';
     let lastClasse = '';
+    let inFavSection = false;
+    const hasFavs = items.some(c => c._fav);
+
     items.forEach((c, i) => {
+      // Section favoris / autres
+      if (hasFavs) {
+        if (c._fav && !inFavSection) {
+          inFavSection = true;
+          html += `<div class="pc-ac-favheader">⭐ Comptes courants</div>`;
+          lastClasse = '';
+        } else if (!c._fav && inFavSection) {
+          inFavSection = false;
+          html += `<div class="pc-ac-classe" style="margin-top:4px">Autres comptes</div>`;
+          lastClasse = '';
+        }
+      }
+
       const classe = c.code.charAt(0);
       if (classe !== lastClasse) {
         lastClasse = classe;
@@ -6922,7 +7072,7 @@ function initPCAutocomplete(input, opts={}) {
       const libHL = highlightMatch(c.lib, query);
       html += `<div class="pc-ac-item${i===activeIdx?' active':''}" data-idx="${i}" data-code="${c.code}">
         <span class="pc-code">${codeHL}</span>
-        <span class="pc-lib">${libHL}</span>
+        <span class="pc-lib">${libHL}${c._fav?'<span class="pc-ac-fav">⭐</span>':''}</span>
       </div>`;
     });
     dd.innerHTML = html;
