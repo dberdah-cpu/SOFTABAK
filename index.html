@@ -6498,8 +6498,19 @@ function generateFEC() {
         <input id="rg-libelle" type="text" placeholder="Dons" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
       </div>
       <div>
+        <label style="font-size:11px;color:#6b7280;font-weight:600;display:block;margin-bottom:4px">Mode de règlement</label>
+        <select id="rgl-mode" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px">
+          <option value="especes">💶 Espèces</option>
+          <option value="cheque">📝 Chèque</option>
+          <option value="virement" selected>🏦 Virement</option>
+          <option value="cb">💳 CB Terminal</option>
+          <option value="stripe">💳 CB Stripe</option>
+          <option value="paypal">🅿️ PayPal</option>
+        </select>
+      </div>
+      <div>
         <label style="font-size:11px;color:#6b7280;font-weight:600;display:block;margin-bottom:4px">Compte bancaire</label>
-        <select id="rg-banque" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px"></select>
+        <select id="rgl-banque" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px"></select>
       </div>
       <div id="rg-kilometre-bar" style="display:none;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:8px 12px;align-items:center;gap:8px">
         <span style="font-size:20px">✅</span>
@@ -7768,7 +7779,7 @@ function openRecetteGlobale() {
   document.getElementById('rg-montant').value = '';
   document.getElementById('rg-libelle').value = '';
   // Remplir sélecteur banque (ou option par défaut si aucun compte)
-  const sel = document.getElementById('rg-banque');
+  const sel = document.getElementById('rgl-banque');
   if (state.banques.length) {
     sel.innerHTML = state.banques.map(b => `<option value="${b.id}">${b.nom} (${b.compte||'512'})</option>`).join('');
     sel.parentElement.style.display = '';
@@ -7776,6 +7787,8 @@ function openRecetteGlobale() {
     sel.innerHTML = '<option value="">Compte 512 (par défaut)</option>';
     sel.parentElement.style.display = 'none';
   }
+  // Mode de règlement par défaut
+  document.getElementById('rgl-mode').value = 'virement';
   // Reset UI kilomètre
   document.getElementById('rg-kilometre-bar').style.display = 'none';
   document.getElementById('rg-btn-terminer').style.display = 'none';
@@ -7788,22 +7801,26 @@ async function saveRecetteGlobale() {
   const annee = document.getElementById('rg-annee').value;
   const montant = parseFloat(document.getElementById('rg-montant').value) || 0;
   const libCustom = document.getElementById('rg-libelle').value.trim();
-  const banqueId = document.getElementById('rg-banque').value;
+  const banqueId = document.getElementById('rgl-banque').value;
+  const modeReglement = document.getElementById('rgl-mode').value;
 
   if (!montant || montant <= 0) { notify('Saisissez un montant', true); return; }
   if (!annee) { notify('Saisissez l\'année', true); return; }
 
   const MOIS_NOMS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const MODE_LABELS = { especes:'Espèces', cheque:'Chèque', virement:'Virement', cb:'CB', stripe:'Stripe', paypal:'PayPal' };
+  const MODE_COMPTES = { especes:'530', cheque:'5112', virement:'512', cb:'512', stripe:'512', paypal:'512' };
   const moisNom = MOIS_NOMS[parseInt(mois)-1];
-  const libelle = libCustom || `Dons ${moisNom} ${annee}`;
+  const modeLabel = MODE_LABELS[modeReglement] || modeReglement;
+  const libelle = libCustom || `Dons ${moisNom} ${annee} — ${modeLabel}`;
 
   // Date = dernier jour du mois
   const lastDay = new Date(annee, parseInt(mois), 0).getDate();
   const date = `${annee}-${mois}-${String(lastDay).padStart(2,'0')}`;
 
-  // Comptes
+  // Comptes — le mode de règlement détermine le compte au débit
   const banque = state.banques.find(b => b.id === banqueId);
-  const compteBanque = banque?.compte || '512';
+  const compteBanque = (modeReglement === 'especes') ? '530' : (modeReglement === 'cheque') ? '5112' : (banque?.compte || MODE_COMPTES[modeReglement] || '512');
   const t = getTypeSocieteDossier();
   const d = DEFAULTS_PAR_TYPE[t] || DEFAULTS_PAR_TYPE.association;
   const compteDon = d.contrepartie.vente || '754';
