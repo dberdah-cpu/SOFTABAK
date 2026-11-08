@@ -1090,6 +1090,7 @@
       <span style="font-size:12px;font-weight:600;color:#374151">Comptes bancaires & règlements</span>
       <button class="cp-add-btn" onclick="openModal('banqueModal')" style="margin-left:auto">+ Compte</button>
       <button class="cp-add-btn" onclick="openModal('reglementModal')" style="background:#059669">+ Règlement</button>
+      <button class="cp-add-btn" onclick="openCsvImport()" style="background:#7c3aed;margin-left:4px" title="Importer un relevé CSV">📥 CSV</button>
     </div>
     <div class="cp-content">
       <div class="cp-section-title">Soldes bancaires</div>
@@ -6821,6 +6822,82 @@ function generateFEC() {
   </div>
 </div>
 
+<!-- Modal Import CSV Banque -->
+<div class="modal-overlay" id="csvImportModal">
+  <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📥 Import relevé CSV</div>
+
+    <!-- Étape 1: Upload -->
+    <div id="csv-step-upload">
+      <div style="background:#f0f9ff;border:2px dashed #93c5fd;border-radius:10px;padding:20px;text-align:center;margin-bottom:14px">
+        <label style="display:inline-flex;align-items:center;gap:6px;background:#1a56db;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">
+          📂 Choisir un fichier CSV
+          <input type="file" accept=".csv,.txt,.tsv" id="csv-file-input" onchange="onCsvFileSelected(this)" style="display:none">
+        </label>
+        <p style="font-size:11px;color:#6b7280;margin-top:10px">Exportez votre relevé depuis votre espace bancaire en ligne (format CSV)</p>
+      </div>
+      <div style="font-size:11px;color:#9ca3af;margin-bottom:8px">
+        <b>Banques supportées :</b> BNP, Société Générale, Crédit Mutuel, CIC, LCL, Crédit Agricole, Boursorama, La Banque Postale, Caisse d'Épargne, Hello Bank, Fortuneo, et tout CSV avec colonnes date/libellé/montant.
+      </div>
+    </div>
+
+    <!-- Étape 2: Mapping colonnes -->
+    <div id="csv-step-mapping" style="display:none">
+      <div style="background:#fef3c7;border-radius:8px;padding:10px;margin-bottom:12px;font-size:11px;color:#92400e">
+        💡 <b id="csv-detect-msg">Format détecté automatiquement.</b> Vérifiez le mapping ci-dessous et ajustez si nécessaire.
+      </div>
+      <div class="form-group">
+        <label class="form-label">Compte bancaire *</label>
+        <select class="form-select" id="csv-banque-select"></select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div class="form-group" style="margin:0"><label class="form-label">Colonne Date *</label><select class="form-select" id="csv-col-date"></select></div>
+        <div class="form-group" style="margin:0"><label class="form-label">Colonne Libellé *</label><select class="form-select" id="csv-col-lib"></select></div>
+      </div>
+      <div id="csv-montant-mode" style="margin-bottom:12px">
+        <label class="form-label">Format montant</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="radio" name="csv-amt-mode" value="single" checked onchange="onCsvAmtModeChange()"> Une colonne (±)
+          </label>
+          <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="radio" name="csv-amt-mode" value="split" onchange="onCsvAmtModeChange()"> Deux colonnes (Débit/Crédit)
+          </label>
+        </div>
+      </div>
+      <div id="csv-amt-single" style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px">
+        <div class="form-group" style="margin:0"><label class="form-label">Colonne Montant *</label><select class="form-select" id="csv-col-montant"></select></div>
+      </div>
+      <div id="csv-amt-split" style="display:none;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div class="form-group" style="margin:0"><label class="form-label">Colonne Débit</label><select class="form-select" id="csv-col-debit"></select></div>
+        <div class="form-group" style="margin:0"><label class="form-label">Colonne Crédit</label><select class="form-select" id="csv-col-credit"></select></div>
+      </div>
+      <div class="action-row" style="margin-top:8px">
+        <button class="btn btn-gold" style="flex:1" onclick="previewCsvImport()">Prévisualiser</button>
+        <button class="btn btn-outline" onclick="csvBackToUpload()">← Retour</button>
+      </div>
+    </div>
+
+    <!-- Étape 3: Prévisualisation -->
+    <div id="csv-step-preview" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:600;color:#374151" id="csv-preview-count">0 opérations</span>
+        <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;color:#6b7280">
+          <input type="checkbox" id="csv-skip-dupes" checked> Ignorer les doublons
+        </label>
+      </div>
+      <div id="csv-preview-table" style="max-height:300px;overflow-y:auto;border:1px solid #e8eaed;border-radius:8px;background:#fff"></div>
+      <div style="margin-top:10px;font-size:11px;color:#9ca3af" id="csv-preview-summary"></div>
+      <div class="action-row" style="margin-top:12px">
+        <button class="btn btn-gold" style="flex:1" onclick="executeCsvImport()">✅ Importer</button>
+        <button class="btn btn-outline" onclick="csvBackToMapping()">← Mapping</button>
+        <button class="btn btn-outline" onclick="closeModal('csvImportModal')">Annuler</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Facture Fournisseur -->
 <div class="modal-overlay" id="factFournModal">
   <div class="modal">
@@ -7699,6 +7776,359 @@ function showConfirmModal(title, bodyHtml, onConfirm) {
     await onConfirm();
   });
   openModal('confirmActionModal');
+}
+
+// ============ IMPORT CSV BANCAIRE ============
+
+let csvParsedRows = [];   // données brutes parsées
+let csvHeaders = [];       // noms de colonnes
+let csvPreviewData = [];   // données prêtes à importer
+
+// Profils de détection automatique des banques françaises
+const CSV_BANK_PROFILES = [
+  { name:'BNP Paribas',       sep:';', dateCol:/date/i,        libCol:/libell/i,       amtCol:/montant/i,          debitCol:null, creditCol:null, dateFormat:'dd/mm/yyyy' },
+  { name:'Société Générale',  sep:';', dateCol:/date/i,        libCol:/libell|d.tail/i,amtCol:/montant/i,          debitCol:/d.bit/i, creditCol:/cr.dit/i, dateFormat:'dd/mm/yyyy' },
+  { name:'Crédit Mutuel/CIC', sep:';', dateCol:/date/i,        libCol:/libell/i,       amtCol:null,                debitCol:/d.bit/i, creditCol:/cr.dit/i, dateFormat:'dd/mm/yyyy' },
+  { name:'LCL',               sep:';', dateCol:/date/i,        libCol:/libell/i,       amtCol:/montant/i,          debitCol:null, creditCol:null, dateFormat:'dd/mm/yyyy' },
+  { name:'Crédit Agricole',   sep:';', dateCol:/date/i,        libCol:/libell/i,       amtCol:/montant/i,          debitCol:/d.bit/i, creditCol:/cr.dit/i, dateFormat:'dd/mm/yyyy' },
+  { name:'Boursorama',        sep:';', dateCol:/date/i,        libCol:/label|libell/i, amtCol:/amount|montant/i,   debitCol:null, creditCol:null, dateFormat:'yyyy-mm-dd' },
+  { name:'La Banque Postale', sep:';', dateCol:/date/i,        libCol:/libell/i,       amtCol:/montant/i,          debitCol:null, creditCol:null, dateFormat:'dd/mm/yyyy' },
+  { name:'Générique (;)',     sep:';', dateCol:/date/i,        libCol:/lib|desc|label/i,amtCol:/mont|amount|sum/i, debitCol:/deb/i, creditCol:/cre/i, dateFormat:'dd/mm/yyyy' },
+  { name:'Générique (,)',     sep:',', dateCol:/date/i,        libCol:/lib|desc|label/i,amtCol:/mont|amount|sum/i, debitCol:/deb/i, creditCol:/cre/i, dateFormat:'dd/mm/yyyy' },
+];
+
+function openCsvImport() {
+  if (!state.banques.length) {
+    notify('Créez d\'abord un compte bancaire avant d\'importer', true);
+    return;
+  }
+  // Reset
+  document.getElementById('csv-file-input').value = '';
+  csvParsedRows = []; csvHeaders = []; csvPreviewData = [];
+  document.getElementById('csv-step-upload').style.display = 'block';
+  document.getElementById('csv-step-mapping').style.display = 'none';
+  document.getElementById('csv-step-preview').style.display = 'none';
+  openModal('csvImportModal');
+}
+
+function parseCsvLine(line, sep) {
+  const result = [];
+  let current = '', inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i+1] === '"') { current += '"'; i++; }
+      else if (ch === '"') inQuotes = false;
+      else current += ch;
+    } else {
+      if (ch === '"') inQuotes = true;
+      else if (ch === sep) { result.push(current.trim()); current = ''; }
+      else current += ch;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function detectSeparator(text) {
+  const firstLines = text.split('\n').slice(0, 5).join('\n');
+  const semiCount = (firstLines.match(/;/g)||[]).length;
+  const commaCount = (firstLines.match(/,/g)||[]).length;
+  const tabCount = (firstLines.match(/\t/g)||[]).length;
+  if (tabCount > semiCount && tabCount > commaCount) return '\t';
+  if (semiCount >= commaCount) return ';';
+  return ',';
+}
+
+function onCsvFileSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    let text = e.target.result;
+    // Nettoyer BOM
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    const sep = detectSeparator(text);
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) { notify('Le fichier semble vide ou invalide', true); return; }
+
+    // Trouver la ligne d'en-tête (certaines banques mettent des lignes avant)
+    let headerIdx = 0;
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+      const cols = parseCsvLine(lines[i], sep);
+      // L'en-tête est la ligne qui contient "date" ou "Date"
+      if (cols.some(c => /date/i.test(c))) { headerIdx = i; break; }
+    }
+
+    csvHeaders = parseCsvLine(lines[headerIdx], sep).map(h => h.replace(/^["']|["']$/g,''));
+    csvParsedRows = [];
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+      const cols = parseCsvLine(lines[i], sep);
+      if (cols.length >= csvHeaders.length - 1 && cols.some(c => c)) {
+        // Pad si moins de colonnes
+        while (cols.length < csvHeaders.length) cols.push('');
+        csvParsedRows.push(cols);
+      }
+    }
+
+    if (!csvParsedRows.length) { notify('Aucune donnée trouvée dans le fichier', true); return; }
+
+    // Passer au mapping
+    setupCsvMapping(sep);
+  };
+  // Essayer UTF-8 d'abord, sinon ISO-8859-1
+  reader.readAsText(file, 'UTF-8');
+}
+
+function setupCsvMapping(sep) {
+  // Remplir le sélecteur de compte bancaire
+  const bqSel = document.getElementById('csv-banque-select');
+  bqSel.innerHTML = state.banques.map(b => `<option value="${b.id}">${b.nom}${b.banque?' — '+b.banque:''}</option>`).join('');
+
+  // Remplir les sélecteurs de colonnes
+  const optionsHtml = '<option value="">— choisir —</option>' +
+    csvHeaders.map((h,i) => `<option value="${i}">${h}</option>`).join('');
+  ['csv-col-date','csv-col-lib','csv-col-montant','csv-col-debit','csv-col-credit'].forEach(id => {
+    document.getElementById(id).innerHTML = optionsHtml;
+  });
+
+  // Auto-detect : chercher le meilleur profil
+  let bestProfile = null, bestScore = 0;
+  for (const p of CSV_BANK_PROFILES) {
+    let score = 0;
+    const matchCol = (rx) => rx ? csvHeaders.findIndex(h => rx.test(h)) : -1;
+    if (matchCol(p.dateCol) >= 0) score += 3;
+    if (matchCol(p.libCol) >= 0) score += 2;
+    if (p.amtCol && matchCol(p.amtCol) >= 0) score += 2;
+    if (p.debitCol && matchCol(p.debitCol) >= 0) score += 1;
+    if (p.creditCol && matchCol(p.creditCol) >= 0) score += 1;
+    if (score > bestScore) { bestScore = score; bestProfile = p; }
+  }
+
+  if (bestProfile && bestScore >= 5) {
+    const mc = (rx) => rx ? csvHeaders.findIndex(h => rx.test(h)) : -1;
+    const dateIdx = mc(bestProfile.dateCol);
+    const libIdx = mc(bestProfile.libCol);
+    const amtIdx = bestProfile.amtCol ? mc(bestProfile.amtCol) : -1;
+    const debIdx = bestProfile.debitCol ? mc(bestProfile.debitCol) : -1;
+    const credIdx = bestProfile.creditCol ? mc(bestProfile.creditCol) : -1;
+
+    if (dateIdx >= 0) document.getElementById('csv-col-date').value = dateIdx;
+    if (libIdx >= 0) document.getElementById('csv-col-lib').value = libIdx;
+
+    // Détecter si c'est 1 colonne montant ou 2 colonnes débit/crédit
+    if (debIdx >= 0 && credIdx >= 0) {
+      document.querySelector('input[name="csv-amt-mode"][value="split"]').checked = true;
+      onCsvAmtModeChange();
+      document.getElementById('csv-col-debit').value = debIdx;
+      document.getElementById('csv-col-credit').value = credIdx;
+    } else if (amtIdx >= 0) {
+      document.querySelector('input[name="csv-amt-mode"][value="single"]').checked = true;
+      onCsvAmtModeChange();
+      document.getElementById('csv-col-montant').value = amtIdx;
+    }
+
+    document.getElementById('csv-detect-msg').textContent = `Format détecté : ${bestProfile.name}. Vérifiez le mapping.`;
+  } else {
+    document.getElementById('csv-detect-msg').textContent = 'Format non reconnu automatiquement. Associez les colonnes manuellement.';
+  }
+
+  document.getElementById('csv-step-upload').style.display = 'none';
+  document.getElementById('csv-step-mapping').style.display = 'block';
+  document.getElementById('csv-step-preview').style.display = 'none';
+}
+
+function onCsvAmtModeChange() {
+  const mode = document.querySelector('input[name="csv-amt-mode"]:checked')?.value || 'single';
+  document.getElementById('csv-amt-single').style.display = mode === 'single' ? 'grid' : 'none';
+  document.getElementById('csv-amt-split').style.display = mode === 'split' ? 'grid' : 'none';
+}
+
+function csvBackToUpload() {
+  document.getElementById('csv-step-upload').style.display = 'block';
+  document.getElementById('csv-step-mapping').style.display = 'none';
+}
+
+function csvBackToMapping() {
+  document.getElementById('csv-step-mapping').style.display = 'block';
+  document.getElementById('csv-step-preview').style.display = 'none';
+}
+
+function parseCsvDate(str) {
+  if (!str) return null;
+  str = str.trim().replace(/['"]/g, '');
+  // dd/mm/yyyy ou dd-mm-yyyy
+  let m = str.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // yyyy-mm-dd
+  m = str.match(/^(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})$/);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  // dd/mm/yy
+  m = str.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2})$/);
+  if (m) { const y = parseInt(m[3]) > 50 ? '19'+m[3] : '20'+m[3]; return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
+  return null;
+}
+
+function parseCsvAmount(str) {
+  if (!str || !str.trim()) return 0;
+  str = str.trim().replace(/['"]/g, '').replace(/\s/g, '');
+  // Format français : 1 234,56 → 1234.56 ou -1 234,56
+  // Supprimer les séparateurs de milliers (point ou espace avant la virgule)
+  // Si contient une virgule, c'est le séparateur décimal
+  if (str.includes(',')) {
+    str = str.replace(/\./g, '').replace(',', '.');
+  }
+  const val = parseFloat(str);
+  return isNaN(val) ? 0 : val;
+}
+
+function previewCsvImport() {
+  const dateCol = parseInt(document.getElementById('csv-col-date').value);
+  const libCol = parseInt(document.getElementById('csv-col-lib').value);
+  const mode = document.querySelector('input[name="csv-amt-mode"]:checked')?.value || 'single';
+
+  if (isNaN(dateCol) || isNaN(libCol)) { notify('Sélectionnez les colonnes Date et Libellé', true); return; }
+
+  let amtCol = -1, debCol = -1, credCol = -1;
+  if (mode === 'single') {
+    amtCol = parseInt(document.getElementById('csv-col-montant').value);
+    if (isNaN(amtCol)) { notify('Sélectionnez la colonne Montant', true); return; }
+  } else {
+    debCol = parseInt(document.getElementById('csv-col-debit').value);
+    credCol = parseInt(document.getElementById('csv-col-credit').value);
+    if (isNaN(debCol) && isNaN(credCol)) { notify('Sélectionnez au moins une colonne Débit ou Crédit', true); return; }
+  }
+
+  const banqueId = document.getElementById('csv-banque-select').value;
+  const skipDupes = document.getElementById('csv-skip-dupes').checked;
+  const existingEcs = dossierEcritures().filter(e => e.journal === 'banque');
+
+  csvPreviewData = [];
+  let skipped = 0, errors = 0;
+
+  for (const row of csvParsedRows) {
+    const dateStr = parseCsvDate(row[dateCol]);
+    const lib = (row[libCol] || '').trim();
+    let montant = 0, sens = 'credit';
+
+    if (mode === 'single') {
+      montant = parseCsvAmount(row[amtCol]);
+      if (montant < 0) { sens = 'debit'; montant = Math.abs(montant); }
+      else sens = 'credit';
+    } else {
+      const deb = parseCsvAmount(row[debCol] || '');
+      const cred = parseCsvAmount(row[credCol] || '');
+      if (deb && Math.abs(deb) > 0.001) { montant = Math.abs(deb); sens = 'debit'; }
+      else if (cred && Math.abs(cred) > 0.001) { montant = Math.abs(cred); sens = 'credit'; }
+    }
+
+    if (!dateStr || !lib || montant < 0.01) { errors++; continue; }
+
+    // Vérifier doublons
+    if (skipDupes) {
+      const isDupe = existingEcs.some(e =>
+        e.date === dateStr &&
+        Math.abs(e.montant - montant) < 0.01 &&
+        e.libelle === lib
+      );
+      if (isDupe) { skipped++; continue; }
+    }
+
+    csvPreviewData.push({ date: dateStr, libelle: lib, montant, sens, banqueId });
+  }
+
+  // Afficher prévisualisation
+  const table = document.getElementById('csv-preview-table');
+  if (!csvPreviewData.length) {
+    table.innerHTML = '<div style="padding:20px;text-align:center;color:#9ca3af;font-size:12px">Aucune opération à importer' +
+      (skipped ? ` (${skipped} doublon(s) ignoré(s))` : '') + '</div>';
+  } else {
+    table.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr style="background:#f9fafb">
+        <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #e5e7eb">Date</th>
+        <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #e5e7eb">Libellé</th>
+        <th style="padding:6px 8px;text-align:right;border-bottom:1px solid #e5e7eb">Montant</th>
+        <th style="padding:6px 8px;text-align:center;border-bottom:1px solid #e5e7eb">Sens</th>
+      </tr></thead>
+      <tbody>${csvPreviewData.map((d,i) => `<tr style="border-bottom:1px solid #f3f4f6">
+        <td style="padding:5px 8px;white-space:nowrap;color:#6b7280">${fmtDate(d.date)}</td>
+        <td style="padding:5px 8px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.libelle}">${d.libelle}</td>
+        <td style="padding:5px 8px;text-align:right;font-weight:500;color:${d.sens==='credit'?'#059669':'#dc2626'}">${d.sens==='credit'?'+':'−'}${fmt(d.montant)} €</td>
+        <td style="padding:5px 8px;text-align:center">${d.sens==='credit'?'⬆️':'⬇️'}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }
+
+  document.getElementById('csv-preview-count').textContent = `${csvPreviewData.length} opération(s)`;
+  let summary = '';
+  const totalCredit = csvPreviewData.filter(d=>d.sens==='credit').reduce((s,d)=>s+d.montant,0);
+  const totalDebit = csvPreviewData.filter(d=>d.sens==='debit').reduce((s,d)=>s+d.montant,0);
+  summary = `⬆️ Encaissements : +${fmt(totalCredit)} € · ⬇️ Décaissements : −${fmt(totalDebit)} €`;
+  if (skipped) summary += ` · ${skipped} doublon(s) ignoré(s)`;
+  if (errors) summary += ` · ${errors} ligne(s) ignorée(s) (erreur)`;
+  document.getElementById('csv-preview-summary').textContent = summary;
+
+  document.getElementById('csv-step-mapping').style.display = 'none';
+  document.getElementById('csv-step-preview').style.display = 'block';
+}
+
+async function executeCsvImport() {
+  if (!csvPreviewData.length) { notify('Aucune opération à importer', true); return; }
+
+  const t = getTypeSocieteDossier();
+  const d = DEFAULTS_PAR_TYPE[t] || DEFAULTS_PAR_TYPE.sci;
+  const ts = Date.now();
+  const promises = [];
+  let count = 0;
+
+  for (let i = 0; i < csvPreviewData.length; i++) {
+    const row = csvPreviewData[i];
+    // Pour un encaissement (crédit) : Débit 512 / Crédit contrepartie (411 ou 756000 etc.)
+    // Pour un décaissement (débit) : Débit contrepartie (606 etc.) / Crédit 512
+    let cpteD, cpteC;
+    if (row.sens === 'credit') {
+      cpteD = '512';
+      cpteC = d.contrepartie.banque || '411';
+    } else {
+      cpteD = d.contrepartie.achat || '606';
+      cpteC = '512';
+    }
+
+    const ec = {
+      id: `csv_${ts}_${i}`,
+      date: row.date,
+      journal: 'banque',
+      libelle: row.libelle,
+      compteDebit: cpteD,
+      compteCredit: cpteC,
+      montant: row.montant,
+      ref: 'CSV',
+    };
+    state.ecritures.push(ec);
+    promises.push(dbUpsert('ecritures', ec));
+    count++;
+  }
+
+  // Aussi créer des règlements correspondants
+  for (let i = 0; i < csvPreviewData.length; i++) {
+    const row = csvPreviewData[i];
+    const rg = {
+      id: `csvrg_${ts}_${i}`,
+      banqueId: row.banqueId,
+      date: row.date,
+      libelle: row.libelle,
+      montant: row.montant,
+      sens: row.sens,
+      invoiceId: null,
+    };
+    state.reglements.push(rg);
+    promises.push(dbUpsert('reglements', rg));
+  }
+
+  await Promise.all(promises);
+  closeModal('csvImportModal');
+  renderEcritures(); renderBanques(); renderReglements(); renderBalance();
+  notify(`${count} opération(s) importée(s) ✓`);
 }
 
 // Init compta au chargement
