@@ -4730,15 +4730,15 @@ const EC_PRESETS = {
 // Contrepartie et tiers par défaut selon type de société
 const DEFAULTS_PAR_TYPE = {
   sci: {
-    contrepartie: { vente:'706', venteLib:'Loyers / prestations', achat:'606', achatLib:'Charges diverses', immo:'213', immoLib:'Immeuble' },
+    contrepartie: { vente:'706', venteLib:'Loyers / prestations', achat:'606', achatLib:'Charges diverses', banque:'411', banqueLib:'Client', immo:'213', immoLib:'Immeuble' },
     tiers: { vente:'411', achat:'401' },
   },
   commerciale: {
-    contrepartie: { vente:'707', venteLib:'Ventes de marchandises', achat:'607', achatLib:'Achats de marchandises', immo:'213', immoLib:'Immeuble' },
+    contrepartie: { vente:'707', venteLib:'Ventes de marchandises', achat:'607', achatLib:'Achats de marchandises', banque:'411', banqueLib:'Client', immo:'213', immoLib:'Immeuble' },
     tiers: { vente:'411', achat:'401' },
   },
   association: {
-    contrepartie: { vente:'756000', venteLib:'Cotisations adhérents', achat:'606', achatLib:'Charges diverses', immo:'213', immoLib:'Immeuble' },
+    contrepartie: { vente:'756000', venteLib:'Cotisations adhérents', achat:'606', achatLib:'Charges diverses', banque:'756000', banqueLib:'Cotisations adhérents', immo:'213', immoLib:'Immeuble' },
     tiers: { vente:'411', achat:'401' },
   },
 };
@@ -4748,7 +4748,7 @@ function getContrepartiePreset(journal) {
   const d = DEFAULTS_PAR_TYPE[t] || DEFAULTS_PAR_TYPE.sci;
   if (journal === 'vente')  return [{ compte:d.contrepartie.vente, libelle:d.contrepartie.venteLib }];
   if (journal === 'achat')  return [{ compte:d.contrepartie.achat, libelle:d.contrepartie.achatLib }];
-  if (journal === 'banque') return [{ compte:'512', libelle:'Banque' }];
+  if (journal === 'banque') return [{ compte:d.contrepartie.banque, libelle:d.contrepartie.banqueLib }];
   if (journal === 'immo')   return [{ compte:d.contrepartie.immo, libelle:d.contrepartie.immoLib }];
   if (journal === 'an')     return [{ compte:'', libelle:'Report à nouveau' }];
   return [{ compte:'', libelle:'' }];
