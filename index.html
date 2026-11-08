@@ -7760,9 +7760,6 @@ const CSV_BANK_PROFILES = [
 let rgKilometreCount = 0;
 
 function openRecetteGlobale() {
-  if (!state.banques.length) {
-    notify('Créez d\'abord un compte bancaire', true); return;
-  }
   rgKilometreCount = 0;
   // Pré-remplir mois/année courants
   const now = new Date();
@@ -7770,9 +7767,15 @@ function openRecetteGlobale() {
   document.getElementById('rg-annee').value = now.getFullYear();
   document.getElementById('rg-montant').value = '';
   document.getElementById('rg-libelle').value = '';
-  // Remplir sélecteur banque
+  // Remplir sélecteur banque (ou option par défaut si aucun compte)
   const sel = document.getElementById('rg-banque');
-  sel.innerHTML = state.banques.map(b => `<option value="${b.id}">${b.nom} (${b.compte||'512'})</option>`).join('');
+  if (state.banques.length) {
+    sel.innerHTML = state.banques.map(b => `<option value="${b.id}">${b.nom} (${b.compte||'512'})</option>`).join('');
+    sel.parentElement.style.display = '';
+  } else {
+    sel.innerHTML = '<option value="">Compte 512 (par défaut)</option>';
+    sel.parentElement.style.display = 'none';
+  }
   // Reset UI kilomètre
   document.getElementById('rg-kilometre-bar').style.display = 'none';
   document.getElementById('rg-btn-terminer').style.display = 'none';
@@ -7819,21 +7822,25 @@ async function saveRecetteGlobale() {
     ref,
   });
 
-  // Règlement associé
-  state.reglements.push({
-    id: `rg_${ts}`,
-    date,
-    banqueId,
-    libelle,
-    montant,
-    sens: 'credit',
-  });
+  // Règlement associé (seulement si un compte bancaire existe)
+  if (banqueId) {
+    state.reglements.push({
+      id: `rg_${ts}`,
+      date,
+      banqueId,
+      libelle,
+      montant,
+      sens: 'credit',
+    });
+  }
 
   try {
     const ec = state.ecritures.find(e => e.id === `ec_${ts}_0`);
     if (ec) await dbUpsert('ecritures', ec);
-    const rg = state.reglements.find(r => r.id === `rg_${ts}`);
-    if (rg) await dbUpsert('reglements', rg);
+    if (banqueId) {
+      const rg = state.reglements.find(r => r.id === `rg_${ts}`);
+      if (rg) await dbUpsert('reglements', rg);
+    }
   } catch(err) { console.warn('DB partielle recette globale:', err); }
 
   renderEcritures(); renderBalance(); renderBanques(); renderReglements(); renderDashboard();
